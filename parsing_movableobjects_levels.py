@@ -21,6 +21,18 @@ import time
 -----------------------------------------------------------------------------------
 '''
 def parsing_objects(level_select):	
+
+	'''
+	Args:
+	  level_select: Which level you choose
+	Returns:
+	  s_grd : ground's state (list)
+	  s_total : other objects' initial state (list) 
+	  id_total : objects ID (list)
+	  n_total : the number of each type of objects (list)
+	  movable_ID : list of movable ID (list)
+	  ID_dict : The list of block type of each ID (dict)
+	'''
 	# Open a level json file and movableObject list file
 	with open('{}.json'.format(level_select), 'rt', encoding = 'utf-8-sig') as object_file:
 		object_data = json.load(object_file)
@@ -44,6 +56,7 @@ def parsing_objects(level_select):
 	'''
 
 	# Initialize the information list of IDs and states
+	id_grd = []
 	id_metal = []
 	id_wood = []
 	id_speedupu = []
@@ -84,12 +97,14 @@ def parsing_objects(level_select):
 
 	# Create ID_dict to check ID correspondency (e.g. Enter 'AOGC'-> show it is metal)
 	ID_dict = {}
-
+	ID_state_matching = {}
 	# Classify all things according to types and Allocate all data to the lists
 	for k in range(n_obj):
 		a = obj_list[k]
+		ID_state_matching['{}'.format(a[6])] = a[1:6]
 		if a[0] == "ground":
 			s_grd.append(a[1:6]) # [x,y,width,height,rotation]
+			id_grd.append(a[6])			
 		elif a[0] == "ball":
 			s_ball = a[1:6]
 			id_ball = a[6]
@@ -166,7 +181,7 @@ def parsing_objects(level_select):
 
 	# Check which objects are movable to input initial states (from movableObjects.json)
 	print("The movalbe IDs are {}".format(movable_ID))
-	return s_grd, s_total, id_total, n_total, movable_ID, ID_dict
+	return id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching
 
 '''
 -----------------------------------------------------------------------------------
@@ -178,6 +193,16 @@ def parsing_objects(level_select):
 '''
 
 def run_simulation(level, movable_ID, ID_dict, state_input = [], logfileName = "bb"):	
+	'''
+	Args:
+	  level : Which level you choose
+	  movable_ID : list of movable ID (list)
+	  ID_dict : The list of block type of each ID (dict)
+	  state_input : which state input you wanna enter
+	  logfileName : Name of **.log
+	Returns:
+	  No return, just execute     
+	'''
 	# Import automate.json file to enter the desired input values
 	with open('automate.json', 'rt', encoding = 'utf-8-sig') as automate_file:
 		input_object = json.load(automate_file)
@@ -218,9 +243,12 @@ def run_simulation(level, movable_ID, ID_dict, state_input = [], logfileName = "
 	a = subprocess.Popen("./bubble-ball")
 	time.sleep(5)
 	a.terminate()
-	gg = input("python is still alive?")
+	gg = input("Check for python works after the bubble-ball execution")
+
 
 if __name__ == "__main__":
 	level_select = 2
-	s_grd, s_total, id_total, n_total, movable_ID, ID_dict = parsing_objects(level_select)
+	id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
+	print(ID_state_matching)
 	run_simulation(level_select, movable_ID, ID_dict)	
+	
