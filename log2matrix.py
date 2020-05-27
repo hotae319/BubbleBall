@@ -40,6 +40,8 @@ def logging_trajectory(filename, level_select):
 	  n_obj : The number of objects
 	  bool_success : success(True) or failure(false)
 	  ID_list : Which ID is in the log file
+	  collision_pre_list : states before collision  [vx vy w x y theta width height]
+	  collision_post_list :  states after collision  [vx vy w x y theta width height]
 	'''
 	id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = ps.parsing_objects(level_select)		
 
@@ -179,7 +181,6 @@ def logging_trajectory(filename, level_select):
 				s_post2 = s_pre2
 			collision_pre_list.append(s_pre1+s_pre2)
 			collision_post_list.append(s_post1+s_post2)
-	print(collision_pre_list)
 
 	# make the object's list
 	'''

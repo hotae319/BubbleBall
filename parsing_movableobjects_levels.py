@@ -4,8 +4,8 @@
 	@ Function : (1)Import json file and parse it while checking movable IDs and initial config (2) Enter inputs and run simulation automatically 
 				--> parsing_objects(level_select) / run_simulation(level, movable_ID, ID_dict, state_input = [], logfileName = "bb"):	
 	@ Parameters : 
-	@ Variables : 
-	@ Retruns :  id_xxxx and s_xxxx (id list, state list) and n_total(list), ID_dict(dict), state_input(list), movable_ID(list)
+	@ Variables:  level_select(int), state_input(list), logfileName(str)
+	@ Retruns :  id_xxxx and s_xxxx (id list, state list) and n_total(list), ID_dict(dict), ID_state_matching(dict), movable_ID(list)
 	@ Description : 
 	@ TODO : Make a for loop to iterate many input values so that we can train this algorithm
 '''
@@ -32,6 +32,7 @@ def parsing_objects(level_select):
 	  n_total : the number of each type of objects (list)
 	  movable_ID : list of movable ID (list)
 	  ID_dict : The list of block type of each ID (dict)
+	  ID_state_matching(dict) : ID to state
 	'''
 	# Open a level json file and movableObject list file
 	with open('{}.json'.format(level_select), 'rt', encoding = 'utf-8-sig') as object_file:
