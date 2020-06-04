@@ -47,7 +47,7 @@ def parsing_objects(level_select):
 	# obj_list[k] means each object information ["type",x,y,width,height,rotation,"ID",""]
 	obj_list = object_data[0]["objects"] 
 	n_obj = len(obj_list)
-	print("the total number of objects is {} in this level".format(n_obj))
+	print("The total number of objects is {} in this level".format(n_obj))
 
 	'''
 	@ FYI
@@ -117,7 +117,7 @@ def parsing_objects(level_select):
 			s_metal.append(a[1:6]) # this state's size element also represents the type of block(triangle, circle, rectangle)
 			id_metal.append(a[6])
 			ID_dict['{}'.format(a[6])] = 'metal block on {}'.format(a[1:6]) # Insert this into ID_dict
-		elif a[0][0:4] == "wood" or "catapult": # catapult has 125x25 size, so we can distinguish
+		elif a[0][0:4] == "wood" or a[0][0:4] =="catapult": # catapult has 125x25 size, so we can distinguish
 			n_wood = n_wood + 1
 			s_wood.append(a[1:6])
 			id_wood.append(a[6])
@@ -174,14 +174,14 @@ def parsing_objects(level_select):
 	id_total = [id_ball, id_flag, id_metal, id_wood, id_speedupu, id_speedupd, id_speedupl, id_speedupr, id_slowdown, id_gravity, id_gravitydown, id_spring, id_teleport]
 	s_total = [s_ball, s_flag, s_metal, s_wood, s_speedupu, s_speedupd, s_speedupl, s_speedupr, s_slowdown, s_gravity, s_gravitydown, s_spring, s_teleport]
 	n_total = [1, 1, n_metal, n_wood, n_speedupu, n_speedupd, n_speedupl, n_speedupr, n_slowdown, n_gravity, n_gravitydown, n_spring, n_teleport]
-	print(ID_dict)
+	print("ID_dict shows that {}".format(ID_dict))
 	print("The number of [ball, flag, metal, wood, speedup (u,d,l,r), slowdown, grvity (u,d), spring, teleport] is {} ".format(n_total))
 	print("IDs of metal and wood are {0} and {1}".format(id_metal, id_wood))
 	print("The ID of the ball is {}".format(id_ball))
-	print("The starting point of the ball is {0} and the target point of the flag is {1} \n".format(s_ball, s_flag))
+	print("The starting point of the ball is {0} and the target point of the flag is {1}".format(s_ball, s_flag))
 
 	# Check which objects are movable to input initial states (from movableObjects.json)
-	print("The movalbe IDs are {}".format(movable_ID))
+	print("The movalbe IDs are {}\n".format(movable_ID))
 	return id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching
 
 '''
@@ -248,7 +248,7 @@ def run_simulation(level, movable_ID, ID_dict, state_input = [], logfileName = "
 
 
 if __name__ == "__main__":
-	level_select = 2
+	level_select = 3
 	id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
 	print(ID_state_matching)
 	run_simulation(level_select, movable_ID, ID_dict)	
