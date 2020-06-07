@@ -48,6 +48,12 @@ def CheckInside(point_list, ptest):
         ineq_compare.append(LineInequality(p1,p2,pcm))
         if LineInequality(p1,p2,pcm)*LineInequality(p1,p2,ptest) < 0:
             bool_inside = False
+    # the segment between the last point and the first point
+    p1 = point_list[n_pt-1]
+    p2 = point_list[0]
+    ineq_compare.append(LineInequality(p1,p2,pcm))
+    if LineInequality(p1,p2,pcm)*LineInequality(p1,p2,ptest) < 0:
+        bool_inside = False
     return bool_inside
 
 def CheckIntersectPolygon(point_list, p1, p2):
@@ -68,7 +74,9 @@ def ClosestNeighbor(point_list, ptest, k):
         ptarget = point_list[i]
         dist.append([ptarget[0], ptarget[1], sqrt((ptarget[0]-ptest[0])**2+(ptarget[1]-ptest[1])**2)])
     dist.sort(key = lambda x: x[2]) # descendingly by the 3rd element(distance)
-    knnlist = [dist[i][0:2] for i in range(k)]
+    knnlist = [dist[i][0:2] for i in range(k+1)]
+    # remove itself
+    knnlist.remove(knnlist[0])
     return knnlist
 
 # Example about How to use

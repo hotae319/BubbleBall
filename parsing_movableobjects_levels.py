@@ -251,5 +251,6 @@ if __name__ == "__main__":
 	level_select = 3
 	id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
 	print(ID_state_matching)
+	print("s_grd : {}".format(s_grd))
 	run_simulation(level_select, movable_ID, ID_dict)	
 	
