@@ -4,7 +4,7 @@ from math import sqrt, cos, sin, pi, atan
 if __name__ == "__main__":
     from utils import CheckInside, CheckIntersect, CheckIntersectPolygon, ClosestNeighbor
 else:
-    from planning_algo.utils import CheckInside, CheckIntersect, CheckIntersectPolygon, ClosestNeighbor
+    from .utils import CheckInside, CheckIntersect, CheckIntersectPolygon, ClosestNeighbor
 
 '''
 Args : 
@@ -51,7 +51,8 @@ class PRM:
         return free_bool, obs_region
     def Sampling(self, num_samples):
         '''
-        1) connect p_start and p_end 2) select the samples around that line (average is the line) 
+        Randomly choose the samples
+        connect p_start and p_end / select the samples around that line (average is the line) 
         '''
         xmin = 0
         ymin = 0
@@ -150,7 +151,20 @@ class PRM:
             pre = came_from["{}".format(pre)]
             shortest.append(pre)
         return path, shortest, came_from
-
+    def ExcludePoints(self, point_list, k):
+        '''
+        point_list : What we wanna exclude
+        k : k-nearest points are also excluded
+        '''
+        # Exclude the point_list from the samples set
+        for i in range(len(point_list)):           
+            self.p_sample.remove(point_list[i])
+        # Exclude the closest point list from the sample set
+        for i in range(len(point_list)):
+            knn = ClosestNeighbor(self.p_sample,point_list[i],k)
+            for j in range(k):
+                self.p_sample.remove(knn[j])
+        return self.p_sample        
 # Example about How to use
 
 if __name__ == "__main__":

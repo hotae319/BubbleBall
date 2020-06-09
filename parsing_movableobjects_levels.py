@@ -14,7 +14,7 @@ import json
 import numpy as np
 import subprocess
 import time
-
+import os, sys
 '''
 -----------------------------------------------------------------------------------
 1) Import json files and parse all objects
@@ -35,9 +35,10 @@ def parsing_objects(level_select):
 	  ID_state_matching(dict) : ID to state
 	'''
 	# Open a level json file and movableObject list file
-	with open('{}.json'.format(level_select), 'rt', encoding = 'utf-8-sig') as object_file:
+	abspath = os.path.abspath(os.path.dirname(__file__))
+	with open('{0}/levels/{1}.json'.format(abspath,level_select), 'rt', encoding = 'utf-8-sig') as object_file:
 		object_data = json.load(object_file)
-	with open('movableObjects.json', 'rt', encoding = 'utf-8-sig') as movable_file:	
+	with open('{}/movableObjects.json'.format(abspath), 'rt', encoding = 'utf-8-sig') as movable_file:	
 	    movable_data = json.load(movable_file) # Level object data
 
 	# Change the ovable_data to a list (e.g. ['AO6G', 'C5NY'])

@@ -11,7 +11,12 @@
 '''
 
 import numpy as np
+import os, sys
+abspath = os.path.abspath(os.path.dirname(__file__))
+print(abspath)
+sys.path.append(abspath)
 import parsing_movableobjects_levels as ps
+
 '''
 -----------------------------------------------------------------------------------
 Import json files and parse all objects
@@ -45,7 +50,7 @@ def logging_trajectory(filename, level_select):
 	'''
 	id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = ps.parsing_objects(level_select)		
 
-	with open('{}.log'.format(filename),'rt') as f:
+	with open('{0}/{1}.log'.format(abspath, filename),'rt') as f:
 		content = f.readlines()
 
 	print(type(content)) # list
