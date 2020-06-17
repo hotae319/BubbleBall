@@ -28,7 +28,7 @@ import os, sys
 def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500]): 
     '''
     Args : 
-    Returns : prm, shortest_path, sampling_list
+    Returns : prm(PRM class), shortest_path, sampling_list
     '''
     level_select = level
     # Identify the start/end point
@@ -97,7 +97,7 @@ def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500]):
     ax1.add_artist(ball)
     ax1.add_patch(goal)
     ax1.plot()
-    plt.show(block = False)
+    plt.show()
     return prm, shortest_path, sampling_list
 
 def re_planning(prm, level, shortest_path_pre, k = 6, n_exclude = 1):
@@ -105,6 +105,7 @@ def re_planning(prm, level, shortest_path_pre, k = 6, n_exclude = 1):
     Args : 
     Returns : shortest_path, sampling_list
     '''
+    plt.show(block = False)
     level_select = level
     id_grd, s_grd_list, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
     '''

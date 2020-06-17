@@ -62,6 +62,7 @@ def parsing_objects(level_select):
 	id_grd = []
 	id_metal = []
 	id_wood = []
+	id_woodtri = [] # circle and triagle has the same size 
 	id_speedupu = []
 	id_speedupd = []
 	id_speedupl = []
@@ -75,6 +76,7 @@ def parsing_objects(level_select):
 	s_grd = []
 	s_metal = []
 	s_wood = []
+	s_woodtri = []
 	s_speedupu = []
 	s_speedupd = []
 	s_speedupl = []
@@ -88,6 +90,7 @@ def parsing_objects(level_select):
 	# Initialize the number of objects
 	n_metal = 0 
 	n_wood = 0
+	n_woodtri = 0
 	n_speedupu = 0
 	n_speedupd = 0
 	n_speedupl = 0
@@ -120,10 +123,16 @@ def parsing_objects(level_select):
 			id_metal.append(a[6])
 			ID_dict['{}'.format(a[6])] = 'metal block on {}'.format(a[1:6]) # Insert this into ID_dict
 		elif a[0][0:4] == "wood" or a[0][0:4] =="catapult": # catapult has 125x25 size, so we can distinguish
-			n_wood = n_wood + 1
-			s_wood.append(a[1:6])
-			id_wood.append(a[6])
-			ID_dict['{}'.format(a[6])] = 'wood block on {}'.format(a[1:6])
+			if a[0][0:7] == "woodrtr":
+				n_woodtri += 1
+				s_woodtri.append(a[1:6])
+				id_woodtri.append(a[6])
+				ID_dict['{}'.format(a[6])] = 'wood triangle on {}'.format(a[1:6])
+			else:
+				n_wood = n_wood + 1
+				s_wood.append(a[1:6])
+				id_wood.append(a[6])
+				ID_dict['{}'.format(a[6])] = 'wood block on {}'.format(a[1:6])
 		elif a[0] == "speedupu":
 			n_speedupu = n_speedupu + 1
 			s_speedupu.append(a[1:6])
@@ -173,12 +182,12 @@ def parsing_objects(level_select):
 			print("new type of item appeared")
 
 	# Make a list containing the number of each object
-	id_total = [id_ball, id_flag, id_metal, id_wood, id_speedupu, id_speedupd, id_speedupl, id_speedupr, id_slowdown, id_gravity, id_gravitydown, id_spring, id_teleport]
-	s_total = [s_ball, s_flag, s_metal, s_wood, s_speedupu, s_speedupd, s_speedupl, s_speedupr, s_slowdown, s_gravity, s_gravitydown, s_spring, s_teleport]
-	n_total = [1, 1, n_metal, n_wood, n_speedupu, n_speedupd, n_speedupl, n_speedupr, n_slowdown, n_gravity, n_gravitydown, n_spring, n_teleport]
+	id_total = [id_ball, id_flag, id_metal, id_wood, id_woodtri, id_speedupu, id_speedupd, id_speedupl, id_speedupr, id_slowdown, id_gravity, id_gravitydown, id_spring, id_teleport]
+	s_total = [s_ball, s_flag, s_metal, s_wood, s_woodtri, s_speedupu, s_speedupd, s_speedupl, s_speedupr, s_slowdown, s_gravity, s_gravitydown, s_spring, s_teleport]
+	n_total = [1, 1, n_metal, n_wood, n_woodtri, n_speedupu, n_speedupd, n_speedupl, n_speedupr, n_slowdown, n_gravity, n_gravitydown, n_spring, n_teleport]
 	print("ID_dict shows that {}".format(ID_dict))
-	print("The number of [ball, flag, metal, wood, speedup (u,d,l,r), slowdown, grvity (u,d), spring, teleport] is {} ".format(n_total))
-	print("IDs of metal and wood are {0} and {1}".format(id_metal, id_wood))
+	print("The number of [ball, flag, metal, wood, woodtri, speedup (u,d,l,r), slowdown, grvity (u,d), spring, teleport] is {} ".format(n_total))
+	print("IDs of metal and wood and woodtri are {0} and {1} and {2}".format(id_metal, id_wood, id_woodtri))
 	print("The ID of the ball is {}".format(id_ball))
 	print("The starting point of the ball is {0} and the target point of the flag is {1}".format(s_ball, s_flag))
 
@@ -250,7 +259,7 @@ def run_simulation(level, movable_ID, ID_dict, state_input = [], logfileName = "
 
 
 if __name__ == "__main__":
-	level_select = 3
+	level_select = 9
 	id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
 	print(ID_state_matching)
 	print("s_grd : {}".format(s_grd))

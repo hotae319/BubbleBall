@@ -1,6 +1,34 @@
 # utils
 import numpy as np
-from math import sqrt
+from math import sqrt, pi
+
+def RotatePts(state):
+    # [x,y,w,h,rot]
+    if w == 75:   
+        x = state[0]
+        y = state[1]
+        w = state[2]
+        h = state[3]    
+        theta = state[4]/180*pi  
+        alpha = pi/4 # isosceles triangle
+        cx = x + w/2
+        cy = y + h/2
+        l = sqrt(w**2+h**2)/2
+        pts = [[cx+l*cos(theta+alpha),cy+l*sin(theta+alpha)],[cx-l*cos(theta+alpha),cy-l*sin(theta+alpha)],
+        [cx-l*cos(theta-alpha),cy-l*sin(theta-alpha)]] # [p1,p2,p3] = [[x,y],p2,p3], counter clockwise
+    else:    
+        x = state[0]
+        y = state[1]
+        w = state[2]
+        h = state[3]    
+        theta = state[4]/180*pi
+        alpha = atan(h/w) # we can replace it with using cos(a+b) = cos(a)cos(b)-sin(a)sin(b)
+        cx = x + w/2
+        cy = y + h/2
+        l = sqrt(w**2+h**2)/2
+        pts = [[cx+l*cos(theta+alpha),cy+l*sin(theta+alpha)],[cx+l*cos(theta-alpha),cy+l*sin(theta-alpha)],
+        [cx-l*cos(theta+alpha),cy-l*sin(theta+alpha)],[cx-l*cos(theta-alpha),cy-l*sin(theta-alpha)]] # [p1,p2,p3,p4] = [[x,y],p2,p3,p4], counterclockwise
+    return pts
 
 def LineInequality(p1,p2,ptest):
     # check where the ptest is about the line p1p2
@@ -65,6 +93,11 @@ def CheckIntersectPolygon(point_list, p1, p2):
         q2 = point_list[i+1]
         if CheckIntersect(p1,p2,q1,q2):
             bool_intersect = True
+    # the segment between the last point and the first point
+    q1 = point_list[n_pt-1]
+    q2 = point_list[0]
+    if CheckIntersect(p1,p2,q1,q2):
+        bool_intersect = True
     return bool_intersect
 def ClosestNeighbor(point_list, ptest, k):
     # Choose k nearest points from ptest

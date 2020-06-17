@@ -4,7 +4,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import sqrt
 
-g = 10	
+if __name__ == "__main__":
+    from const import g
+else:
+    from .  const import g
+
 def Parabola(a, x):
 	# x should be np.array	
 	vx = a[0]
@@ -55,7 +59,7 @@ if __name__ == "__main__":
 	x_pt = [pt_list[i][0] for i in range(len(pt_list))]
 	y_pt = [pt_list[i][1] for i in range(len(pt_list))]
 	x, y = FindParabola(pt_list)
-	x2, y2, _, _, _ = FindParabola2pt(pt_list[0],pt_list[1])
+	#x2, y2, _, _, _ = FindParabola2pt(pt_list[0],pt_list[1])
 	plt.figure()
 	plt.axis([-1,20,20,-1])
 	plt.plot(x, y, 'b', x2, y2, 'r')
