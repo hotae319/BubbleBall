@@ -92,12 +92,12 @@ def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500]):
         t = tr + ts # tr + ts (order is important)
         rect = patches.Rectangle((s_grd[0],s_grd[1]),s_grd[2],s_grd[3], edgecolor='k', facecolor="k", transform = t)
         ax1.add_patch(rect)
-    ball = plt.Circle((s_total[0][0],s_total[0][1]),15)
+    ball = plt.Circle((s_total[0][0],s_total[0][1]),15, facecolor = 'blue')
     goal = patches.Rectangle((s_total[1][0],s_total[1][1]),38,50,edgecolor='g', facecolor="none")
     ax1.add_artist(ball)
     ax1.add_patch(goal)
     ax1.plot()
-    plt.show()
+    #plt.show()
     return prm, shortest_path, sampling_list
 
 def re_planning(prm, level, shortest_path_pre, k = 6, n_exclude = 1):
@@ -158,17 +158,17 @@ def re_planning(prm, level, shortest_path_pre, k = 6, n_exclude = 1):
         t = tr + ts # tr + ts (order is important)
         rect = patches.Rectangle((s_grd[0],s_grd[1]),s_grd[2],s_grd[3], edgecolor='k', facecolor="k", transform = t)
         ax.add_patch(rect)
-    ball = plt.Circle((s_total[0][0],s_total[0][1]),15)
+    ball = plt.Circle((s_total[0][0],s_total[0][1]),15, facecolor = 'blue')
     goal = patches.Rectangle((s_total[1][0],s_total[1][1]),38,50,edgecolor='g', facecolor="none")
     ax.add_artist(ball)
     ax.add_patch(goal)
     ax.plot()   
-    plt.show()
+    #plt.show()
 
     return shortest_path, sampling_list
 
 if __name__ == "__main__":
-    level = 10
+    level = 2
     n_sample = 500
     map_size = [0,500,0,500]
     k1 = 6
@@ -176,3 +176,4 @@ if __name__ == "__main__":
     n_exclude = 1
     prm, shortest_path, sampling_list = path_planning(level, n_sample, k1 , map_size)    
     re_planning(prm, level, shortest_path, k2, n_exclude)
+    plt.show()

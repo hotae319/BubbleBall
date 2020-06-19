@@ -1,27 +1,22 @@
 # utils
 import numpy as np
-from math import sqrt, pi
+from math import sqrt, pi, atan, cos, sin
 
 def RotatePts(state):
     # [x,y,w,h,rot]
+    x = state[0]
+    y = state[1]
+    w = state[2]
+    h = state[3]    
+    theta = state[4]/180*pi  
     if w == 75:   
-        x = state[0]
-        y = state[1]
-        w = state[2]
-        h = state[3]    
-        theta = state[4]/180*pi  
         alpha = pi/4 # isosceles triangle
         cx = x + w/2
         cy = y + h/2
         l = sqrt(w**2+h**2)/2
         pts = [[cx+l*cos(theta+alpha),cy+l*sin(theta+alpha)],[cx-l*cos(theta+alpha),cy-l*sin(theta+alpha)],
         [cx-l*cos(theta-alpha),cy-l*sin(theta-alpha)]] # [p1,p2,p3] = [[x,y],p2,p3], counter clockwise
-    else:    
-        x = state[0]
-        y = state[1]
-        w = state[2]
-        h = state[3]    
-        theta = state[4]/180*pi
+    else: 
         alpha = atan(h/w) # we can replace it with using cos(a+b) = cos(a)cos(b)-sin(a)sin(b)
         cx = x + w/2
         cy = y + h/2
@@ -121,3 +116,6 @@ if __name__ == "__main__":
     ptest = [1.1,1.2]
     knn = ClosestNeighbor(plist, ptest, 3)
     print(knn)
+
+    a = CheckIntersect([300,220],[375,220],[367.5844354960768, 219.05725880568156],[366.11887974599153, 221.9906774753703])
+    print(a)

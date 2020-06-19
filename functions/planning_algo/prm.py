@@ -34,6 +34,7 @@ class PRM:
                 l = sqrt(w**2+h**2)/2
                 obs_region.append([[cx+l*cos(theta+alpha),cy+l*sin(theta+alpha)],[cx+l*cos(theta-alpha),cy+l*sin(theta-alpha)],
                 [cx-l*cos(theta+alpha),cy-l*sin(theta+alpha)],[cx-l*cos(theta-alpha),cy-l*sin(theta-alpha)]]) # [p1,p2,p3,p4] = [[x,y],p2,p3,p4], counter clockwise
+        else:
             s_obs = self.obs_slist
             w = s_obs[2]
             h = s_obs[3]
