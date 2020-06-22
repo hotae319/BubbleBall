@@ -48,6 +48,8 @@ def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500]):
     # Initialize 
     num_samples = n_sample  
     p_start = s_total[0][0:2]
+    p_start[0] += 15
+    p_start[1] += 15
     p_end = s_total[1][0:2]
     prm = planning.PRM(map_size, s_grd_list, p_start, p_end)
     sampling_list = prm.Sampling(num_samples)
@@ -90,15 +92,15 @@ def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500]):
         ts = ax1.transData
         tr = trans.Affine2D().rotate_deg_around(s_grd[0]+s_grd[2]/2,s_grd[1]+s_grd[3]/2, s_grd[4])
         t = tr + ts # tr + ts (order is important)
-        rect = patches.Rectangle((s_grd[0],s_grd[1]),s_grd[2],s_grd[3], edgecolor='k', facecolor="k", transform = t)
+        rect = patches.Rectangle((s_grd[0],s_grd[1]),s_grd[2],s_grd[3], edgecolor='k', facecolor="None", transform = t)
         ax1.add_patch(rect)
-    ball = plt.Circle((s_total[0][0],s_total[0][1]),15, facecolor = 'blue')
+    ball = plt.Circle((s_total[0][0]+15,s_total[0][1]+15),15, facecolor = 'blue') # +15 means the ball's center
     goal = patches.Rectangle((s_total[1][0],s_total[1][1]),38,50,edgecolor='g', facecolor="none")
     ax1.add_artist(ball)
     ax1.add_patch(goal)
     ax1.plot()
     #plt.show()
-    return prm, shortest_path, sampling_list
+    return prm, shortest_path, sampling_list, ax1
 
 def re_planning(prm, level, shortest_path_pre, k = 6, n_exclude = 1):
     '''
@@ -156,9 +158,9 @@ def re_planning(prm, level, shortest_path_pre, k = 6, n_exclude = 1):
         ts = ax.transData
         tr = trans.Affine2D().rotate_deg_around(s_grd[0]+s_grd[2]/2,s_grd[1]+s_grd[3]/2, s_grd[4])
         t = tr + ts # tr + ts (order is important)
-        rect = patches.Rectangle((s_grd[0],s_grd[1]),s_grd[2],s_grd[3], edgecolor='k', facecolor="k", transform = t)
+        rect = patches.Rectangle((s_grd[0],s_grd[1]),s_grd[2],s_grd[3], edgecolor='k', facecolor="None", transform = t)
         ax.add_patch(rect)
-    ball = plt.Circle((s_total[0][0],s_total[0][1]),15, facecolor = 'blue')
+    ball = plt.Circle((s_total[0][0]+15,s_total[0][1]+15),15, facecolor = 'blue') # +15 means the ball's center
     goal = patches.Rectangle((s_total[1][0],s_total[1][1]),38,50,edgecolor='g', facecolor="none")
     ax.add_artist(ball)
     ax.add_patch(goal)
@@ -174,6 +176,6 @@ if __name__ == "__main__":
     k1 = 6
     k2 = 6
     n_exclude = 1
-    prm, shortest_path, sampling_list = path_planning(level, n_sample, k1 , map_size)    
+    prm, shortest_path, sampling_list, ax1 = path_planning(level, n_sample, k1 , map_size)    
     re_planning(prm, level, shortest_path, k2, n_exclude)
     plt.show()

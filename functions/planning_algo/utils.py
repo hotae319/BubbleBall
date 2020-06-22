@@ -2,6 +2,10 @@
 import numpy as np
 from math import sqrt, pi, atan, cos, sin
 
+def GetDistance(p1,p2):
+    dist = sqrt((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)
+    return dist
+
 def RotatePts(state):
     # [x,y,w,h,rot]
     x = state[0]
@@ -42,11 +46,31 @@ def CheckIntersect(p1,p2,q1,q2):
     # Check if the line p1p2 and the line q1q2 intersect    
     eq1 = LineInequality(p1,p2,q1)*LineInequality(p1,p2,q2)
     eq2 = LineInequality(q1,q2,p1)*LineInequality(q1,q2,p2)
-    if eq1<=0 and eq2<=0:
+    if (eq1<=0 and eq2<0) or (eq1<0 and eq2<=0):
         bool_intersect = True
     else:
         bool_intersect = False
     return bool_intersect
+def GetIntersectPt(p1,p2,q1,q2):
+    # only when the intersection exists
+    x1 = p1[0]
+    y1 = p1[1]
+    x2 = p2[0]
+    y2 = p2[1]
+    x3 = q1[0]
+    y3 = q1[1]
+    x4 = q2[0]
+    y4 = q2[1]
+    den = (y4-y3)*(x2-x1)-(x4-x3)*(y2-y1)
+    t_num = (x4-x3)*(y1-y3)-(y4-y3)*(x1-x3)
+    s_num = (x2-x1)*(y1-y3)-(y2-y1)*(x1-x3) 
+
+    t = t_num/den
+    s = s_num/den
+    x = x1 + s*(x2-x1)
+    y = y1 + s*(y2-y1)
+    pt_intersect = [x,y]
+    return pt_intersect
 def CheckInside(point_list, ptest):
     '''
     Check if the point is inside or outside of covex polygon
@@ -82,18 +106,25 @@ def CheckInside(point_list, ptest):
 def CheckIntersectPolygon(point_list, p1, p2):
     # Check if the line segment intersect the polygon or not
     bool_intersect = False
+    line_intersect = []
+    pts_intersect = []
     n_pt = len(point_list)
     for i in range(n_pt-1):
         q1 = point_list[i]
         q2 = point_list[i+1]
         if CheckIntersect(p1,p2,q1,q2):
             bool_intersect = True
+            line_intersect.append([q1,q2])
+            pts_intersect.append(GetIntersectPt(p1,p2,q1,q2))
     # the segment between the last point and the first point
     q1 = point_list[n_pt-1]
     q2 = point_list[0]
     if CheckIntersect(p1,p2,q1,q2):
         bool_intersect = True
-    return bool_intersect
+        line_intersect.append([q1,q2])
+        pts_intersect.append(GetIntersectPt(p1,p2,q1,q2))
+    return bool_intersect, line_intersect, pts_intersect
+
 def ClosestNeighbor(point_list, ptest, k):
     # Choose k nearest points from ptest
     n_pt = len(point_list)
@@ -119,3 +150,4 @@ if __name__ == "__main__":
 
     a = CheckIntersect([300,220],[375,220],[367.5844354960768, 219.05725880568156],[366.11887974599153, 221.9906774753703])
     print(a)
+    print(GetIntersectPt([0,0],[1,1],[1,0],[0,1]))

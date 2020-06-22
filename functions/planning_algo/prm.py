@@ -85,7 +85,8 @@ class PRM:
             for q in knn:
                 bool_linefree = True
                 for obs_polygon in obs_region:
-                    if CheckIntersectPolygon(obs_polygon,pt,q):
+                    check, _, _ = CheckIntersectPolygon(obs_polygon,pt,q)
+                    if check:
                         bool_linefree = False      
                 if bool_linefree and not ([q,pt] in connect_line):
                     connect_line.append([pt,q]) # connect_line = [[p1,q1],[p2,q2],...] = [[[1,2],[2,3]],[[2,5],[3,3]],...]
