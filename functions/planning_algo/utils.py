@@ -1,6 +1,7 @@
 # utils
 import numpy as np
 from math import sqrt, pi, atan, cos, sin
+from matplotlib import pyplot as plt
 
 def GetDistance(p1,p2):
     dist = sqrt((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)
@@ -67,8 +68,8 @@ def GetIntersectPt(p1,p2,q1,q2):
 
     t = t_num/den
     s = s_num/den
-    x = x1 + s*(x2-x1)
-    y = y1 + s*(y2-y1)
+    x = x1 + t*(x2-x1)
+    y = y1 + t*(y2-y1)
     pt_intersect = [x,y]
     return pt_intersect
 def CheckInside(point_list, ptest):
@@ -150,4 +151,19 @@ if __name__ == "__main__":
 
     a = CheckIntersect([300,220],[375,220],[367.5844354960768, 219.05725880568156],[366.11887974599153, 221.9906774753703])
     print(a)
-    print(GetIntersectPt([0,0],[1,1],[1,0],[0,1]))
+    print(GetIntersectPt([402.3308708656465, 181.99014409829647], [397.3171275100915, 185.25499744196844],[473.3124530398655, 157.0730365071494], [398.1370433769928, 184.43464797320289]))
+    print(GetIntersectPt([402.3308708656465, 181.99014409829647], [397.3171275100915, 185.25499744196844],[406.6875469601345, 207.9269634928506], [398.1370433769928, 184.43464797320289]))
+    print(CheckIntersectPolygon([[473.3124530398655, 157.0730365071494], [398.1370433769928, 184.43464797320289],[406.6875469601345, 207.9269634928506]],[402.3308708656465, 181.99014409829647], [397.3171275100915, 185.25499744196844]))
+    pre = [402.3308708656465, 181.99014409829647]
+    post = [397.3171275100915, 185.25499744196844]
+    ptlist = [[473.3124530398655, 157.0730365071494], [398.1370433769928, 184.43464797320289],[406.6875469601345, 207.9269634928506]]
+    _, _, intspt = CheckIntersectPolygon(ptlist, pre, post)
+    print(GetIntersectPt(pre, post, ptlist[0], ptlist[1]))
+    print(GetIntersectPt(pre, post, ptlist[2], ptlist[1]))
+    plt.axis([0-1,500+1, 500+1,0-1])
+    plt.scatter(pre[0], pre[1], c = 'r', s = 3)
+    plt.scatter(post[0], post[1], c = 'r', s = 3)
+    plt.scatter(intspt[0][0],intspt[0][1], c = 'g', s = 3)
+    plt.scatter(intspt[1][0], intspt[1][1], c = 'b', s = 3)
+    plt.plot([ptlist[0][0], ptlist[1][0], ptlist[2][0]],[ptlist[0][1], ptlist[1][1], ptlist[2][1]], c = 'k')
+    plt.show()

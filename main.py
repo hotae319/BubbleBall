@@ -51,7 +51,7 @@ def TrajPredict(ball, s_obs_fixed, n_iter, n_timestep = 1):
             h_grd = s_obs_fixed[idx_collision][3]
             rot_grd = s_obs_fixed[idx_collision][4]/180*pi
             f = ImpactMapBall2Fixed(ball, collision_angle)        
-            print("force: {}".format(f))
+            print("v1: {0}, force: {1}".format(ball.vy*cos(collision_angle)-ball.vx*sin(collision_angle),f))
             ball.update([f[0],f[1]+ball.m*g])
             ball.trajectory()   
             
@@ -74,7 +74,7 @@ plt.scatter(xtraj,ytraj, s = 2, c = 'green')
 s_input = ID_state_matching[movable_ID[0]]
 print(ID_dict[movable_ID[0]])
 # Decide input [x,y,rot]
-s_input[0] = 235
+s_input[0] = 250
 s_input[1] = 200
 s_input[4] = 0
 
