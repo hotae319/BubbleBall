@@ -51,6 +51,8 @@ def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500]):
     p_start[0] += 15
     p_start[1] += 15
     p_end = s_total[1][0:2]
+    p_end[0] += 19 # the center w,h = (38,50)
+    p_end[1] += 25 
     prm = planning.PRM(map_size, s_grd_list, p_start, p_end)
     sampling_list = prm.Sampling(num_samples)
     prm.Addstartend()
@@ -67,9 +69,9 @@ def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500]):
     '''
     # Draw path planning figure
     fig1, ax1 = plt.subplots()
-    ax1.set(xlim = (0-1,map_size[1]+1), ylim = (map_size[3]+1,0-1))
     ax1.axis('scaled')
-
+    ax1.set(xlim = (0-1,map_size[1]+1), ylim = (map_size[3]+1,0-1))
+    
     # Prepare the PRM figure
     xpath = [shortest_path[i][0] for i in range(len(shortest_path))]
     ypath = [shortest_path[i][1] for i in range(len(shortest_path))]
@@ -80,9 +82,9 @@ def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500]):
     for j in range(len(connect_line)):
         x = [connect_line[j][0][0],connect_line[j][1][0]]
         y = [connect_line[j][0][1],connect_line[j][1][1]]
-        ax1.plot(x,y, color = 'gray')
+        #ax1.plot(x,y, color = 'gray')
     # Draw all the PRM sampling points
-    ax1.scatter(xsample,ysample, s = 10, c = 'r')
+    #ax1.scatter(xsample,ysample, s = 10, c = 'r')
 
     # Draw the shortest path
     ax1.plot(xpath,ypath, c = 'b')
@@ -92,7 +94,7 @@ def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500]):
         ts = ax1.transData
         tr = trans.Affine2D().rotate_deg_around(s_grd[0]+s_grd[2]/2,s_grd[1]+s_grd[3]/2, s_grd[4])
         t = tr + ts # tr + ts (order is important)
-        rect = patches.Rectangle((s_grd[0],s_grd[1]),s_grd[2],s_grd[3], edgecolor='k', facecolor="None", transform = t)
+        rect = patches.Rectangle((s_grd[0],s_grd[1]),s_grd[2],s_grd[3], edgecolor='k', facecolor="k", transform = t)
         ax1.add_patch(rect)
     ball = plt.Circle((s_total[0][0]+15,s_total[0][1]+15),15, facecolor = 'blue') # +15 means the ball's center
     goal = patches.Rectangle((s_total[1][0],s_total[1][1]),38,50,edgecolor='g', facecolor="none")
@@ -133,9 +135,9 @@ def re_planning(prm, level, shortest_path_pre, k = 6, n_exclude = 1):
     '''
     # Draw path planning figure 
     fig, ax = plt.subplots()
-    ax.set(xlim = (0-1,map_size[1]+1), ylim = (map_size[3]+1,0-1))
     ax.axis('scaled')
-
+    ax.set(xlim = (0-1,map_size[1]+1), ylim = (map_size[3]+1,0-1))
+    
     # Prepare the PRM figure
     xpath = [shortest_path[i][0] for i in range(len(shortest_path))]
     ypath = [shortest_path[i][1] for i in range(len(shortest_path))]
@@ -170,12 +172,12 @@ def re_planning(prm, level, shortest_path_pre, k = 6, n_exclude = 1):
     return shortest_path, sampling_list
 
 if __name__ == "__main__":
-    level = 2
+    level = 13
     n_sample = 500
-    map_size = [0,500,0,500]
+    map_size = [0,500,0,700]
     k1 = 6
     k2 = 6
     n_exclude = 1
     prm, shortest_path, sampling_list, ax1 = path_planning(level, n_sample, k1 , map_size)    
-    re_planning(prm, level, shortest_path, k2, n_exclude)
+    #re_planning(prm, level, shortest_path, k2, n_exclude)
     plt.show()

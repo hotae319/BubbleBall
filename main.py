@@ -19,7 +19,7 @@ id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matchin
 1. path planning
 '''
 n_sample = 500
-map_size = [0,500,0,500]
+map_size = [0,500,0,700]
 k1 = 6
 k2 = 10
 n_exclude = 1
@@ -74,7 +74,7 @@ plt.scatter(xtraj,ytraj, s = 2, c = 'green')
 s_input = ID_state_matching[movable_ID[0]]
 print(ID_dict[movable_ID[0]])
 # Decide input [x,y,rot]
-s_input[0] = 250
+s_input[0] = 260
 s_input[1] = 200
 s_input[4] = 0
 
