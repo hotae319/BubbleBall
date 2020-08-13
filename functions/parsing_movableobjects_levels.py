@@ -31,7 +31,7 @@ def parsing_objects(level_select):
 	  s_total : other objects' initial state (list) 
 	  id_total : objects ID (list)
 	  n_total : the number of each type of objects (list)
-	  movable_ID : list of movable ID (list)
+	  movable_ID : list of movable ID (list) (e.g. ['AO6G', 'C5NY'])
 	  ID_dict : The list of block type of each ID (dict)
 	  ID_state_matching(dict) : ID to state
 	'''
@@ -262,6 +262,8 @@ if __name__ == "__main__":
 	level_select = 9
 	id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
 	print(ID_state_matching)
+	print(ID_dict)
+	print(id_grd)
 	print("s_grd : {}".format(s_grd))
 	run_simulation(level_select, movable_ID, ID_dict)	
 	

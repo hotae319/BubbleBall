@@ -48,7 +48,7 @@ class metalBlock:
         self.fric = 0.5
 
 class woodBlock:
-    def __init__(self, x, y, w, h, rot, vx, vy, w_rot, cir_tri):
+    def __init__(self, x, y, w, h, rot, vx, vy, w_rot, cir_tri, block_type):
         self.x = x
         self.y = y
         self.w = w
@@ -59,6 +59,7 @@ class woodBlock:
         self.w_rot = w_rot
         self.fric = 0.5
         self.den = 1.5 # catapult 0.5
+        self.block_type = block_type
         if w == 50 or w == 100 or w == 150:
             self.m = self.den*w*h
         elif w == 25:

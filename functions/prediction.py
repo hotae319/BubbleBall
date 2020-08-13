@@ -72,10 +72,29 @@ def ImpactMapBall2Wood(ball, wood):
     f_normal = -ball.m*(ball.e+1)/dt*(v1+v2)-ball.m*g*cos(rot)
     f = [-f_normal*sin(rot), f_normal*cos(rot)]
     return f
-def ImpactMapWood2Fixed():
-    a = 1
-def ImpactMapWood2Wood():
-    b = 1
+def ImpactMapWood2Fixed(block, px, py, rot):
+    # rot : the angle of the ground side(edge), which contacts the block
+    # px,py : the pivot point
+    m = block.den*block.w*block.h
+    I = 1/12*block.den*(block.w**2+block.h**2)
+    vin = block.vy*cos(rot)
+    xcm = block.x+block.w/2
+    ycm = block.y+block.h/2
+    l = sqrt((px-xcm)**2+(py-ycm)**2)*cos(rot-block.rot+atan(block.h/block.w))
+    f = m*(g+vin/dt)/(1+m*l**2/I)
+    return f
+
+def ImpactMapWood2Wood(block1, block2, px, py):
+    # px,py : the pivot point
+    m = block1.den*block1.w*block1.h
+    I = 1/12*block1.den*(block1.w**2+block1.h**2)
+    vin = block1.vy*cos(rot)- block2.vy # roughly, suppose no angular vel
+    xcm = block.x+block.w/2
+    ycm = block.y+block.h/2
+    l = sqrt((px-xcm)**2+(py-ycm)**2)*cos(block2.rot-block1.rot+atan(block1.h/block1.w))
+    f = m*(g+vin/dt)/(1+m*l**2/I)
+    return f
+    
 def ComputeDistance(shortest_path, predicted_path):
     # We suppose both paths have the same nubmer of the waypoints
     # Use the simplest cost to compute the distnace between two paths (It can be changed later)

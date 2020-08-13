@@ -99,7 +99,7 @@ def parsing_objects(level_select):
 
 	# Create ID_dict to check ID correspondency (e.g. Enter 'AOGC'-> show it is metal)
 	ID_dict = {}
-	ID_state_matching = {}
+	ID_state_matching = {} #(given ID, return the state(x,y,h,w,theta))
 	# Classify all things according to types and Allocate all data to the lists
 	for k in range(n_obj):
 		a = obj_list[k]

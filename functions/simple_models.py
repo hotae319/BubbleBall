@@ -24,7 +24,7 @@ def Ball2Line(ball, l, theta, vx, vy, w, v_thres = 0.01, w_thres = 0.01):
     vt = ball.vx*cos(theta)+ball.vy*sin(theta)
     v = vy*cos(theta)-vx*sin(theta)+l*w # v means the velocity of the contact point of the block 
     # rolling on the block
-    if abs(v) <= v_thres and abs(w) <= w_thres:
+    if abs(v) <= v_thres and abs(w) <= w_tshres:
         ball.x = ball.x+l*cos(theta)
         ball.y = ball.y+l*sin(theta)
         vend = sqrt(vt**2+2*g*cos(theta))
@@ -36,7 +36,7 @@ def Ball2Line(ball, l, theta, vx, vy, w, v_thres = 0.01, w_thres = 0.01):
         ball.vx = v*sin(theta)+vt*cos(theta)
         ball.vy = v*cos(theta)-vt*sin(theta)
         status = "hitting"
-    return ball
+    return ball, status
 
 # 2) ball to circle (state: ball, input: x,y,v,w)
 def Ball2Circle(ball, r, x, y, vx, vy, w, v_thres = 0.05):
@@ -89,6 +89,7 @@ def Point2Line(px,py,block1,block2):
 
     if abs(block2.vx) < 0.05 and abs(block2.vy) < 0.05 and abs(block2.w_rot) < 1:
         # The upper block is stopped while attching to the lower block.
+        status = "attched"
     else:
         # angular momentum conservation
         m1 = block1.den*block1.w*block1.h
@@ -106,21 +107,63 @@ def Point2Line(px,py,block1,block2):
         block2.vy = vnew_y
         block1.w_rot = wnew
         block2.w_rot = wnew
+        status = "moving"
+    return block1, block2, status
 # 2) 2pts to line (pivot point : px1, py1, px2, py2)
-def Points2Line(px1,py1,px2,py2,block):
+def Points2Line(px1,py1,px2,py2,block, block1, block2):
+    # block1 which contacts the main block at p1
+    # block2 which contacts the main block at p2
     xcm = block.x+block.w/2
     ycm = block.y+block.h/2
     if (px1-xcm)*(px2-xcm) > 0:
         # the point close to C.M. becomes the pivot point.
         if abs(px1-xcm) < abs(px2-xcm):
             # p1 can be a pivot
+            block, block1 = Point2Line(px1, py1, block, block1)
         else:
             # p2 can be a pviot
-    else:
-        # static for the most cases
-
+            block, block2 = Point2Line(px1, py1, block, block2)            
+    return block, block1, block2
 # 3) line to circle
-
+def Line2Circle(block1, block2, px, py, l):
+    # block1 should be a line, upper block
+    # l : the distance along the side(the direction of the block)
+    xcm1 = block1.x+block1.w/2
+    ycm1 = block1.y+block1.h/2    
+    xcm2 = block2.x+block2.w/2
+    ycm2 = block2.y+block2.h/2   
+    d_left = block1.h # need to check
+    d_right = block1.w
+    vt = vx*cos(block1.rot)+vy*sin(block1.rot)
+    if xcm1 > xcm2:
+        # move to the right
+        block1.x += l*cos(block1.rot)
+        block1.y += l*sin(block1.rot)
+        vend = sqrt(2*g*sin(block1.rot)+vt**2)
+        block1.vx = vend*cos(block1.rot)
+        block1.vy = vend*sin(block1.rot)
+    else:
+        # move to the left
+        block1.x -= l*cos(block1.rot)
+        block1.y -= l*sin(block1.rot)
+        vend = sqrt(2*g*sin(block1.rot)+vt**2)
+        block1.vx = -vend*cos(block1.rot)
+        block1.vy = -vend*sin(block1.rot)
+    return block1
+# 4) Circle to line 
+def Circle2Line(block1, block2, l, vx, vy, w):
+    # block1 should be a circle
+    theta = block2.rot
+    vt = block1.vx*cos(theta)+block1.vy*sin(theta)
+    v = vy*cos(theta)-vx*sin(theta)+l*w # v means the velocity of the contact point of the block 
+    # rolling on the block
+    block1.x = block1.x+l*cos(theta)
+    block1.y = block1.y+l*sin(theta)
+    vend = sqrt(vt**2+2*g/3*cos(theta)) # reduced acceleration
+    block1.vx = vend*cos(theta)
+    block1.vy = vend*sin(theta)
+    block1.w_rot = vend/block1.radius
+    return block1
 
 if __name__ == "__main__":
     pts = RotatePts([0,0,10,20,90])

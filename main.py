@@ -8,10 +8,11 @@ from functions.obj_class import Ball, metalBlock, woodBlock, powerUps
 from functions.parsing_movableobjects_levels import parsing_objects, run_simulation
 from functions.prediction import CheckCollisionWithFixed, ImpactMapBall2Fixed, ImpactMapBall2Wood
 from functions.const import g, dt
+from functions.localregion import SortoutEnv
 '''
 0. import the enviornment setting
 '''
-level = 3
+level = 9
 id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level)
 # s_total = [s_ball, s_flag, s_metal, s_wood, s_woodtri, s_speedupu, s_speedupd, s_speedupl, s_speedupr, s_slowdown, s_gravity, s_gravitydown, s_spring, s_teleport]
 # s_ball = [x,y,w,h,rot]
@@ -100,3 +101,5 @@ else:
     plt.plot([x,x+w,x+w,x,x],[y,y,y+h,y+h,y], c = 'y')
 
 plt.show()
+print(ytraj)
+print(type(xtraj))
