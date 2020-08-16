@@ -1,9 +1,9 @@
 # Class
 from math import pi
 if __name__ == "__main__":
-    from const import g, dt    
+    from physics.common.const import g, dt    
 else:
-    from . const import g, dt    
+    from . physics.common.const import g, dt    
 class Ball:
     def __init__(self, x, y, vx, vy):
         self.x = x

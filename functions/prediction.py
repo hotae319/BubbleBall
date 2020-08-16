@@ -1,10 +1,10 @@
 # Model prediction and Compute distance cost
 from math import cos, sin, sqrt, atan, pi
 if __name__ == "__main__":
-    from const import g, dt
+    from physics.common.const import g, dt
     from planning_algo.utils import CheckInside, CheckIntersect, CheckIntersectPolygon, RotatePts
 else:
-    from . const import g, dt
+    from . physics.common.const import g, dt
     from . planning_algo.utils import CheckInside, CheckIntersect, CheckIntersectPolygon, RotatePts, GetDistance
 
 def CheckCollisionWithFixed(ball, block_list, n_timestep):

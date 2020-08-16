@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 from math import sqrt
 
 if __name__ == "__main__":
-    from const import g
+    from physics.common.const import g
 else:
-    from .  const import g
+    from . physics.common.const import g
 
 def Parabola(a, x):
 	# x should be np.array	

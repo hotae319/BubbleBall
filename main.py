@@ -7,7 +7,7 @@ import functions.get_keydirection as keydirection
 from functions.obj_class import Ball, metalBlock, woodBlock, powerUps
 from functions.parsing_movableobjects_levels import parsing_objects, run_simulation
 from functions.prediction import CheckCollisionWithFixed, ImpactMapBall2Fixed, ImpactMapBall2Wood
-from functions.const import g, dt
+from functions.physics.common.const import g, dt
 from functions.localregion import SortoutEnv
 '''
 0. import the enviornment setting

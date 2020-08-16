@@ -9,14 +9,15 @@
     @ TODO : 
 '''
 import numpy as np
+from scipy.optimize import minimize, Bounds, LinearConstraint, NonlinearConstraint
 from math import cos, sin, sqrt, pi
 
 if __name__ == "__main__":
-    from const import g, dt    
-    from planning_algo.utils import RotatePts
+    from common.const import g, dt    
+    #from planning_algo.utils import RotatePts    
 else:
-    from . const import g, dt
-    from . planning_algo.utils import RotatePts
+    from . common.const import g, dt
+    #from . planning_algo.utils import RotatePts
 
 # A) Ball
 # 1) ball to line (state: ball, input: l, theta, vx, vy, w)
@@ -38,6 +39,27 @@ def Ball2Line(ball, l, theta, vx, vy, w, v_thres = 0.01, w_thres = 0.01):
         status = "hitting"
     return ball, status
 
+def Ball2LineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, w, v_thres = 0.01, w_thres = 0.01):
+    # degree to radians 
+    theta = theta/180*pi
+    vt = vxball*cos(theta)+vyball*sin(theta)
+    v = vy*cos(theta)-vx*sin(theta)+l*w # v means the velocity of the contact point of the block 
+    # rolling on the block
+    if abs(v) <= v_thres and abs(w) <= w_thres:
+        xball = xball+l*cos(theta)
+        yball = yball+l*sin(theta)
+        vend = sqrt(vt**2+2*g*cos(theta))
+        vxball = vend*cos(theta)
+        vyball = vend*sin(theta)
+        status = "rolling"
+    # hitting the ball
+    else:
+        vxball = v*sin(theta)+vt*cos(theta)
+        vyball = v*cos(theta)-vt*sin(theta)
+        status = "hitting"
+    ball = [xball,yball,vxball,vyball]
+    return ball, status
+
 # 2) ball to circle (state: ball, input: x,y,v,w)
 def Ball2Circle(ball, r, x, y, vx, vy, w, v_thres = 0.05):
     vt = ball.vx*(y-ball.y)/(ball.radius+r) - ball.vy*(x-ball.x)/(ball.radius+r)
@@ -52,6 +74,20 @@ def Ball2Circle(ball, r, x, y, vx, vy, w, v_thres = 0.05):
         ball.vy = vt*cos_theta-v*sin_theta
     return ball
 
+def Ball2CircleValue(xball, yball, vxball, vyball, rball, r, x, y, vx, vy, w, v_thres = 0.05):
+    vt = vxball*(y-yball)/(rball+r) - vyball*(x-xball)/(rball+r)
+    v = vy*(x-xball)/(rball+r)-vx*(y-yball)/(rball+r)
+    sin_theta = (y-yball)/(rball+r)
+    cos_theta = (x-xball)/(rball+r)
+    if abs(v) <= v_thres:
+        vxball = vt*sin_theta # vt*sin(theta)
+        vyball = vt*cos_theta
+    else:       
+        vxball = vt*sin_theta-v*cos_theta # vt*sin(theta)
+        vyball = vt*cos_theta-v*sin_theta
+    ball = [xball,yball,vxball,vyball]
+    return ball
+
 # 3) ball to point
 def Ball2Point(ball, x, y):
     sin_theta = (y-ball.y)/ball.radius
@@ -61,11 +97,27 @@ def Ball2Point(ball, x, y):
     ball.vy = -vt*sin_theta
     return ball
 
+def Ball2PointValue(xball, yball, vxball, vyball, rball, x, y):
+    sin_theta = (y-yball)/rball
+    cos_theta = (x-xball)/rball
+    vt = vyball*sin_theta-vxball*cos_theta
+    vxball = vt*cos_theta
+    vyball = -vt*sin_theta
+    ball = [xball,yball,vxball,vyball]
+    return ball
+
 # 4) ball in the air
 def BallinAir(ball, l):
     ball.x += l
     ball.y += ball.vy/ball.vx*l+g/2*l**2/ball.vx**2
     ball.vy += g*l/ball.vx
+    return ball
+
+def BallinAirValue(xball, yball, vxball, vyball, l):
+    xball += l
+    yball += vyball/vxball*l+g/2*l**2/vxball**2
+    vyball += g*l/vxball
+    ball = [xball,yball,vxball,vyball]
     return ball
 
 # B) Blocks
@@ -165,9 +217,24 @@ def Circle2Line(block1, block2, l, vx, vy, w):
     block1.w_rot = vend/block1.radius
     return block1
 
+def f(x,*y):
+    # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w
+    # y[0] = ball.x, y[1] = ball.y, y[2] = ball.vx, y[3] = ball.vy
+    state_ball, _ = Ball2LineValue(y[0],y[1],y[2],y[3],x[0],x[1],x[2],x[3],x[4])
+    error = (state_ball[0]-100)**2+(state_ball[1]-100)**2+0*state_ball[2]**2+0*state_ball[3]**2 
+    return error
+
+
 if __name__ == "__main__":
-    pts = RotatePts([0,0,10,20,90])
-    pts1 = RotatePts([0,0,10,20,-90])
-    print(pts)
-    print(pts1)
-    print(type(pts))
+    #ball, status = Ball2Line(ball, l, theta, vx, vy, w, v_thres = 0.01, w_thres = 0.01)
+    x0 = [10,0,0,0,0]
+    y = (50,50,0,15)
+    search_bound = Bounds([0,-90,-np.inf,-np.inf,-np.inf],[np.inf,90,np.inf,np.inf,np.inf])
+    f_nonlin = lambda x:x[0]*x[1]
+    nonlin_constr = NonlinearConstraint(f_nonlin,0,np.inf)
+    res = minimize(f,x0, args = y, bounds = search_bound, constraints = nonlin_constr)
+    print(res.x, res.fun)
+    import os, sys
+
+    abspath = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
+    print(abspath)
