@@ -15,10 +15,10 @@ from math import cos, sin, pi, sqrt, atan
 import os, sys
 if __name__ == "__main__":
     #from obj_class import Ball, metalBlock, woodBlock, powerUps
-    from physics.simple_models import Ball2LineValue, Ball2Circle
+    from physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue
 else:
     #from . obj_class import Ball, metalBlock, woodBlock, powerUps
-    from . physics.simple_models import Ball2LineValue, Ball2Circle
+    from . physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue
 
 
 def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, error_threshold = 0.1):
@@ -38,6 +38,7 @@ def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, error_thre
         sum_dist += dist
         dist_list.append(sum_dist)      
     # pick the pts of predicted traj to compute the tracking error
+    # The entire predicted traj. is split into several parts which are proportional to interval of Tg
     for i in range(num_guide_path):
         id_pick = int(num_pred_traj*dist_list[i]/sum_dist)
         x_predicted_traj_new.append(x_predicted_traj[id_pick])
@@ -46,12 +47,13 @@ def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, error_thre
     idx_local = 0
     while error_list[idx_local] < error_threshold:
         idx_local += 1
-    # decide the local region
+    # Decide the local region
     # id_pick : predicted traj's idx
     id_pick = int(num_pred_traj*dist_list[idx_local]/sum_dist)
     guide_path_local = guide_path[0:idx_local+1] 
     # direction of the end element of local guide path, angle of atan(y/x)
     direction_end = atan((guide_path[idx_local+1][1]-guide_path[idx_local][1])/(guide_path[idx_local+1][0]-guide_path[idx_local][0]))
+    # It can be changed to the total prediction traj
     x_pred_max = max(x_predicted_traj_new)
     y_pred_max = max(y_predicted_traj_new)
     x_guide_max = guide_path_local[idx_local][0]
@@ -83,6 +85,11 @@ def fobj(x,*y):
     # y[5] = guide_path_local[end][0] : x of guide path, y[6] : y of guide path
     # y[7] : direction of v, vx/vy of guide path
     # y[8] : block type, y[9] : block state [x,y,h,w,rot]
+
+    # tracking error (ref = [x,y,dir])
+    ref = [y[5],y[6],y[7]]  
+
+    # All rollouts consist of "gravity or environment -> input -> gravity or environment"
     if y[8] == "rectangle":
         # 1) retangle
         # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w
@@ -92,19 +99,21 @@ def fobj(x,*y):
         # 2) circle
         # x[0] = x, x[1] = y, x[2] = vx, x[3] = vy, x[4] = w
         # r is given as y[9][2]/2
-        state_ball, _ = Ball2CircleValue(y[0],y[1],y[2],y[3],y[4],y[9][2]/2,x[0],x[1],x[2],x[3],x[4])    
+        state_ball_collision = Ball2CircleValue(y[0],y[1],y[2],y[3],y[4],y[9][2]/2,x[0],x[1],x[2],x[3],x[4])
+        x_distance = abs(ref[0]-y[0])
+        state_ball = BallinAirValue(state_ball_collision[0],state_ball_collision[1],state_ball_collision[2],state_ball_collision[3],x_distance)    
     if abs(state_ball[2]) <0.01: # if ball.vx is too low
         direction = pi/2
     else:
-        direction = atan(state_ball[3]/state_ball[2])     
-    # tracking error
-    ref = [y[5],y[6],y[7]]    
+        direction = atan(state_ball[3]/state_ball[2])    
     error = (state_ball[0]-ref[0])**2+(state_ball[1]-ref[1])**2+(direction-ref[2])**2    
 
     return error
 
 
 def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s_ball_ini):
+    # the size of the local region and the environment in the local region can be input
+    # But, we want to minimize the intervention of environment.
     # Input : guide_path_local, block_type, block_state[x,y,h,w,rot], s_ball_ini (x,y,vx,vy)
     # Output : optimal inputs to minize the tracking error based on the simple model
     xball = s_ball_ini[0]
@@ -112,6 +121,7 @@ def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s
     vxball = s_ball_ini[2]
     vyball = s_ball_ini[3]
     rball = s_ball_ini[4]
+    # ref : [x,y,dir]
     ref = (guide_path_local[-1][0],guide_path_local[-1][1], direction_end)
     # Given parameters
     # y = (ball(5),ref(3),block type, block state)
@@ -131,20 +141,37 @@ def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s
     elif block_type == "circle":
         # x[0] = x, x[1] = y, x[2] = vx, x[3] = vy, x[4] = w
         x0 = [xball+block_state[2]/2,yball+block_state[2]/2,0,0,0]
-        # bound : 0 < l < width, -90<theta<90
-        search_bound = Bounds([0,-90,-np.inf,-np.inf,-np.inf],[block_state[3],90,np.inf,np.inf,np.inf])
-        # nonlinear constr : l and theta have same sign
-        f_nonlin = lambda x:x[0]*x[1]
-        nonlin_constr = NonlinearConstraint(f_nonlin,0,np.inf)
+        # bound : we need a condition to collide and x,y should be inside the local region
+        search_bound = Bounds([0,0,-np.inf,-np.inf,-np.inf],[ref[0],ref[1],np.inf,np.inf,np.inf])
+        # nonlinear constr : nothing now
+        #f_nonlin = lambda x:x[0]*x[1]
+        #nonlin_constr = NonlinearConstraint(f_nonlin,0,np.inf)
         # solve optimization
-        res = minimize(fobj ,x0, args = y, bounds = search_bound, constraints = nonlin_constr)
+        res = minimize(fobj ,x0, args = y, bounds = search_bound)
         print(res)
         u_input = res.x
-
     return u_input
 
+def ComputeSupportForces(mainblock_type, mainblock_desired_state, main_traj):
+    # Compute the 2 forces or 1 force with a fixed force, given the desired state of a main block
+    # Input : type("rectangle"), state(x,y,h,w,rot,vx,vy,w_rot)
+    #         main_traj([[vx,vy,w,x,y,rot],...])
+    # Output : two points we will support (p1[x1,y1], p2[x2,y2])
+    
+    p1 = [mainblock_desired_state[0],mainblock_desired_state[1]]
+    p2 = [mainblock_desired_state[0],mainblock_desired_state[1]]
+    return p1, p2
+
+def UpdateModelAfterFailure():
+    model_paramter = 0
+    return model_paramter
+def UpdateCostWeights():
+    weights = [0,0,1]
+    return weights
+
 if __name__=="__main__":
-    u = FindOptimalInput([[60,80],[100,100]], 0.3, "rectangle", [0,0,50,150,0],[60,80,0,5,15])
+    #u = FindOptimalInput([[60,80],[100,100]], 0.3, "rectangle", [0,0,50,150,0],[60,80,0,5,15])
+    u = FindOptimalInput([[60,80],[100,100]], 0.3, "circle", [0,0,50,50,0],[60,80,0,5,15])
     print(type(u))
 
 

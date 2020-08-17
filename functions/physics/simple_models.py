@@ -114,6 +114,7 @@ def BallinAir(ball, l):
     return ball
 
 def BallinAirValue(xball, yball, vxball, vyball, l):
+    # l denotes the distance along x axis, l>0
     xball += l
     yball += vyball/vxball*l+g/2*l**2/vxball**2
     vyball += g*l/vxball
