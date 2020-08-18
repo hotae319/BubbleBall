@@ -16,9 +16,11 @@ import os, sys
 if __name__ == "__main__":
     #from obj_class import Ball, metalBlock, woodBlock, powerUps
     from physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue
+    from physics.common.const import g, dt
 else:
     #from . obj_class import Ball, metalBlock, woodBlock, powerUps
     from . physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue
+    from . physics.common.const import g, dt
 
 
 def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, error_threshold = 0.1):
@@ -84,7 +86,7 @@ def fobj(x,*y):
     # y[0] = ball.x, y[1] = ball.y, y[2] = ball.vx, y[3] = ball.vy, y[4] = ball.r
     # y[5] = guide_path_local[end][0] : x of guide path, y[6] : y of guide path
     # y[7] : direction of v, vx/vy of guide path
-    # y[8] : block type, y[9] : block state [x,y,h,w,rot]
+    # y[8] : block type, y[9] : block state [x,y,w,h,rot]
 
     # tracking error (ref = [x,y,dir])
     ref = [y[5],y[6],y[7]]  
@@ -114,7 +116,7 @@ def fobj(x,*y):
 def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s_ball_ini):
     # the size of the local region and the environment in the local region can be input
     # But, we want to minimize the intervention of environment.
-    # Input : guide_path_local, block_type, block_state[x,y,h,w,rot], s_ball_ini (x,y,vx,vy)
+    # Input : guide_path_local, block_type, block_state[x,y,w,h,rot], s_ball_ini (x,y,vx,vy)
     # Output : optimal inputs to minize the tracking error based on the simple model
     xball = s_ball_ini[0]
     yball = s_ball_ini[1]
@@ -130,7 +132,7 @@ def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s
         # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w
         x0 = [10,0,0,0,0]        
         # bound : 0 < l < width, -90<theta<90
-        search_bound = Bounds([0,-90,-np.inf,-np.inf,-np.inf],[block_state[3],90,np.inf,np.inf,np.inf])
+        search_bound = Bounds([0,-90,-np.inf,-np.inf,-np.inf],[block_state[2],90,np.inf,np.inf,np.inf])
         # nonlinear constr : l and theta have same sign
         f_nonlin = lambda x:x[0]*x[1]
         nonlin_constr = NonlinearConstraint(f_nonlin,0,np.inf)
@@ -152,15 +154,52 @@ def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s
         u_input = res.x
     return u_input
 
-def ComputeSupportForces(mainblock_type, mainblock_desired_state, main_traj):
+def ComputeSupportForces(mainblock_type, mainblock_desired_state, main_traj, contact_point, contact_idx):
     # Compute the 2 forces or 1 force with a fixed force, given the desired state of a main block
-    # Input : type("rectangle"), state(x,y,h,w,rot,vx,vy,w_rot)
-    #         main_traj([[vx,vy,w,x,y,rot],...])
-    # Output : two points we will support (p1[x1,y1], p2[x2,y2])
-    
-    p1 = [mainblock_desired_state[0],mainblock_desired_state[1]]
-    p2 = [mainblock_desired_state[0],mainblock_desired_state[1]]
-    return p1, p2
+    # Input : type("rectangle"), desired_state(x,y,w,h,rot,vx,vy,w_rot)
+    #         current trajectory : main_traj([[vx,vy,w,x,y,rot],[],...,[]])
+    #         contact_point : [x,y], contact_idx : index of traj. when the contact starts
+    # Output : two points we will support (p1[x1,y1], p2[x2,y2]) / one point or range corresponding to given contact pt
+    # the supporting forces which can compensate the movement
+    if mainblock_type == "rectangle":
+        m = 1.5*mainblock_desired_state[2]*mainblock_desired_state[3]
+        I = 1/12*m*(mainblock_desired_state[2]**2+mainblock_desired_state[3]**2)
+    elif mainblock_type == "circle":
+        m = 1.5*pi*(mainblock_desired_state[3]/2)**2
+        I = 1/2*m*(mainblock_desired_state[3]/2)**2
+    elif mainblock_type == "triangle":
+        m = 1/2*1.5*mainblock_desired_state[2]*mainblock_desired_state[3]
+        I = 1/9*m*mainblock_desired_state[3]**2
+    # Compute the current forces under this traj.    
+    # If we observed main_traj, we can compute force traj.
+    fx_list = []
+    fy_list = []
+    torque_list = []
+    for i in range(len(main_traj)-1):
+        fx = m*(main_traj[i+1][0]-main_traj[i][0])/dt         
+        fy = m*(main_traj[i+1][1]-main_traj[i][1])/dt
+        torque = I*(main_traj[i+1][2]-main_traj[i][2])/dt
+        fx_list.append(fx)
+        fy_list.append(fy)
+        torque_list.append(torque)
+    # Actual forces/torques when contact starts
+    fx1 = fx_list[contact_idx]
+    fy1 = fy_list[contact_idx]
+    torque1 = torque_list[contact_idx]
+    # Compute the desired force/torque (F = m(vref-0)/dt)
+    fx_desired = m*mainblock_desired_state[5]/dt
+    fy_desired = m*mainblock_desired_state[6]/dt
+    torque_desired = I*mainblock_desired_state[7]/dt
+    fx2 = fx_desired - fx1 
+    fy2 = fy_desired - fy1 - m*g
+    torque2 = torque_desired - torque1
+    # roughly compute (xcm+lx, ycm)
+    lx = torque2/fy2
+    x2 = mainblock_desired_state[0] + mainblock_desired_state[2]/2 + lx
+    y2 = mainblock_desired_state[1] + mainblock_desired_state[3]/2 
+    # we need the function to find the intersection 
+    p2 = [x2,y2]
+    return p2
 
 def UpdateModelAfterFailure():
     model_paramter = 0
