@@ -28,7 +28,7 @@ def Ball2Line(ball, l, theta, vx, vy, w, v_thres = 0.01, w_thres = 0.01):
     if abs(v) <= v_thres and abs(w) <= w_tshres:
         ball.x = ball.x+l*cos(theta)
         ball.y = ball.y+l*sin(theta)
-        vend = sqrt(vt**2+2*g*cos(theta))
+        vend = sqrt(vt**2+2*g*sin(theta))
         ball.vx = vend*cos(theta)
         ball.vy = vend*sin(theta)
         status = "rolling"
@@ -48,7 +48,7 @@ def Ball2LineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, w, v_t
     if abs(v) <= v_thres and abs(w) <= w_thres:
         xball = xball+l*cos(theta)
         yball = yball+l*sin(theta)
-        vend = sqrt(vt**2+2*g*cos(theta))
+        vend = sqrt(vt**2+2*g*sin(theta))
         vxball = vend*cos(theta)
         vyball = vend*sin(theta)
         status = "rolling"
@@ -113,13 +113,51 @@ def BallinAir(ball, l):
     ball.vy += g*l/ball.vx
     return ball
 
-def BallinAirValue(xball, yball, vxball, vyball, l):
+def BallinAirValue(xball, yball, vxball, vyball, lx, ly):
     # l denotes the distance along x axis, l>0
-    xball += l
-    yball += vyball/vxball*l+g/2*l**2/vxball**2
-    vyball += g*l/vxball
+    if lx == 0:
+        yball += ly
+        vyball += sqrt(vyball**2+2*g*ly)
+    else:
+        xball += lx
+        yball += vyball/vxball*lx+g/2*lx**2/vxball**2
+        vyball += g*lx/vxball
     ball = [xball,yball,vxball,vyball]
     return ball
+
+
+# 5) ball in the small region (combine air and ground)
+def BallinEnvValue(xball, yball, vxball, vyball, rball, x, y, w, h, theta, xregion, yregion, xsize, ysize):
+    # Start from right or left
+    if xball-xregion > xregion+xsize-xball:
+        #From right
+        x0 = xball+xsize
+        x3 = xball
+    else:
+        #From left
+        x0 = xball
+        x3 = xball+xsize
+    # Find the boundary
+    theta = theta/180*pi
+    if x+w/2-w/2*cos(theta)+h/2*sin(theta) < x0:
+        xleft = x0
+    else:
+        xleft = x+w/2-w/2*cos(theta)+h/2*sin(theta)        
+    if x1+w*cos(theta) > x0+xsize:
+        xright = x0+xsize
+    else:
+        xright = x1+w*cos(theta)
+    #y1 = y+h/2-w/2*sin(theta)-h/2*cos(theta)    
+    # Decide x1, x2
+    if x0 == xball:
+        x1 = xleft
+        x2 = xright
+    else:
+        x1 = xright
+        x2 = xleft
+    # Check collisions
+    ball = BallinAirValue(xball, yball, vxball, vyball, lx, ly)
+
 
 # B) Blocks
 # 1) 1 point to line (pivot point : px, py)

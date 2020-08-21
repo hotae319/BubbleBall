@@ -82,6 +82,8 @@ def PickMainBlock(movable_ID, ID_dict, guide_path_local, env_local):
     return order2pick
 
 def fobj(x,*y):
+    # x is the optimization variable
+
     # Common things irrelevant to the type of block
     # y[0] = ball.x, y[1] = ball.y, y[2] = ball.vx, y[3] = ball.vy, y[4] = ball.r
     # y[5] = guide_path_local[end][0] : x of guide path, y[6] : y of guide path
@@ -103,11 +105,13 @@ def fobj(x,*y):
         # r is given as y[9][2]/2
         state_ball_collision = Ball2CircleValue(y[0],y[1],y[2],y[3],y[4],y[9][2]/2,x[0],x[1],x[2],x[3],x[4])
         x_distance = abs(ref[0]-y[0])
-        state_ball = BallinAirValue(state_ball_collision[0],state_ball_collision[1],state_ball_collision[2],state_ball_collision[3],x_distance)    
+        y_distance = abs(ref[1]-y[1])
+        state_ball = BallinAirValue(state_ball_collision[0],state_ball_collision[1],state_ball_collision[2],state_ball_collision[3],x_distance,y_distance)    
     if abs(state_ball[2]) <0.01: # if ball.vx is too low
         direction = pi/2
     else:
         direction = atan(state_ball[3]/state_ball[2])    
+    # error tracking cost
     error = (state_ball[0]-ref[0])**2+(state_ball[1]-ref[1])**2+(direction-ref[2])**2    
 
     return error
@@ -152,6 +156,7 @@ def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s
         res = minimize(fobj ,x0, args = y, bounds = search_bound)
         print(res)
         u_input = res.x
+
     return u_input
 
 def ComputeSupportForces(mainblock_type, mainblock_desired_state, main_traj, contact_point, contact_idx):
