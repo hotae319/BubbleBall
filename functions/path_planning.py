@@ -25,7 +25,7 @@ import os, sys
 #sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
     
 
-def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500]): 
+def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500], p_start = [0,0]): 
     '''
     Args : 
     Returns : prm(PRM class), shortest_path, sampling_list
@@ -47,9 +47,13 @@ def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500]):
     '''
     # Initialize 
     num_samples = n_sample  
-    p_start = s_total[0][0:2] # ball's position
-    p_start[0] += 15
-    p_start[1] += 15
+    if p_start == [0,0]:
+        p_start = s_total[0][0:2] # ball's position
+        p_start[0] += 15
+        p_start[1] += 15
+    else:
+        p_start[0] += 15
+        p_start[1] += 15
     p_end = s_total[1][0:2]
     p_end[0] += 19 # the center w,h = (38,50)
     p_end[1] += 25 
@@ -172,13 +176,13 @@ def re_planning(prm, level, shortest_path_pre, k = 6, n_exclude = 1):
     return shortest_path, sampling_list
 
 if __name__ == "__main__":
-    level = 13
+    level = 4
     n_sample = 500
     map_size = [0,500,0,700]
     k1 = 6
-    k2 = 6
+    k2 = 10
     n_exclude = 1
-    prm, shortest_path, sampling_list, ax1 = path_planning(level, n_sample, k1 , map_size)    
+    prm, shortest_path, sampling_list, ax1 = path_planning(level, n_sample, k1 , map_size, [350,100])    
     #re_planning(prm, level, shortest_path, k2, n_exclude)    
     
     plt.show()

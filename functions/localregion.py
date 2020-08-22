@@ -9,17 +9,21 @@
     @ TODO : 
 '''
 import numpy as np
+import numdifftools as nd
+from matplotlib import pyplot as plt
+import matplotlib.patches as patches
+import matplotlib.transforms as trans
 from scipy.optimize import minimize, Bounds, LinearConstraint, NonlinearConstraint
 import random
 from math import cos, sin, pi, sqrt, atan
 import os, sys
 if __name__ == "__main__":
     #from obj_class import Ball, metalBlock, woodBlock, powerUps
-    from physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue
+    from physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue
     from physics.common.const import g, dt
 else:
     #from . obj_class import Ball, metalBlock, woodBlock, powerUps
-    from . physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue
+    from . physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue
     from . physics.common.const import g, dt
 
 
@@ -116,11 +120,45 @@ def fobj(x,*y):
 
     return error
 
+def fmodel(x,*y):
+    # x is the optimization variable
+
+    # Common things irrelevant to the type of block
+    # y[0] = ball.x, y[1] = ball.y, y[2] = ball.vx, y[3] = ball.vy, y[4] = ball.r
+    # y[5] = guide_path_local[end][0] : x of guide path, y[6] : y of guide path
+    # y[7] : direction of v, vx/vy of guide path
+    # y[8] : block type, y[9] : block state [x,y,w,h,rot]
+
+    # tracking error (ref = [x,y,dir])
+    ref = [y[5],y[6],y[7]]  
+
+    # All rollouts consist of "gravity or environment -> input -> gravity or environment"
+    if y[8] == "rectangle":
+        # 1) retangle
+        # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w
+        #  l should be lower than y[9][3] = w 
+        state_ball, _ = Ball2LineValue(y[0],y[1],y[2],y[3],y[4],x[0],x[1],x[2],x[3],x[4])
+    elif y[8] == "circle":
+        # 2) circle
+        # x[0] = x, x[1] = y, x[2] = vx, x[3] = vy, x[4] = w
+        # r is given as y[9][2]/2
+        state_ball_collision = Ball2CircleValue(y[0],y[1],y[2],y[3],y[4],y[9][2]/2,x[0],x[1],x[2],x[3],x[4])
+        x_distance = abs(ref[0]-y[0])
+        y_distance = abs(ref[1]-y[1])
+        state_ball = BallinAirValue(state_ball_collision[0],state_ball_collision[1],state_ball_collision[2],state_ball_collision[3],x_distance,y_distance)    
+    if abs(state_ball[2]) <0.01: # if ball.vx is too low
+        direction = pi/2
+    else:
+        direction = atan(state_ball[3]/state_ball[2])    
+    result = np.array([state_ball[0],state_ball[1],direction])
+    return result
+
+
 
 def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s_ball_ini):
     # the size of the local region and the environment in the local region can be input
     # But, we want to minimize the intervention of environment.
-    # Input : guide_path_local, block_type, block_state[x,y,w,h,rot], s_ball_ini (x,y,vx,vy)
+    # Input : guide_path_local, block_type, block_state[x,y,w,h,rot], s_ball_ini (x,y,vx,vy,r)
     # Output : optimal inputs to minize the tracking error based on the simple model
     xball = s_ball_ini[0]
     yball = s_ball_ini[1]
@@ -206,17 +244,113 @@ def ComputeSupportForces(mainblock_type, mainblock_desired_state, main_traj, con
     p2 = [x2,y2]
     return p2
 
-def UpdateModelAfterFailure():
+def UpdateModelAfterFailure(guide_path_local, direction_end, block_type, block_state, s_ball_ini, u_pre, f_actual):
+    # Update the mainblock's state after observations
+    # Input : mainblock_type, previous_input, f_actual (x,y,dir) / env, xstart
+    # Output : next_input or new model parameter
+
+    # Model error term's update
     model_paramter = 0
-    return model_paramter
+    # ref : [x,y,dir]
+    ref = np.array((guide_path_local[-1][0],guide_path_local[-1][1], direction_end))
+    # y = (ball(5),ref(3),block type, block state)
+    y = (s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],s_ball_ini[4], ref[0],ref[1],ref[2], block_type, block_state)  
+
+    # Approximate Gradient descent 
+    alpha = 0.3
+    jac = nd.Jacobian(fmodel)
+    a = jac(u_pre, *y)
+    b = a.T
+    unew = u_pre - alpha*(2*np.matmul(b,f_actual)-2*np.matmul(b,ref))    
+    return unew
+
 def UpdateCostWeights():
     weights = [0,0,1]
     return weights
 
+def DrawLocalRegion(xregion, yregion, xsize, ysize, s_grd_list, guide_path_local, s_ball_ini):
+    # Input : xregion,yregion,xsize,ysize / s_grd_list,  s_ball_ini (x,y,vx,vy,r), guide_path_local
+    # guide_path_local (from shortest path) : [[1,2],[2,3],...]
+    '''
+    ---------------------------------------------------------------------
+    Draw the figure (We can make this be a function)
+    ---------------------------------------------------------------------
+    '''
+    # Draw path planning figure
+    fig1, ax1 = plt.subplots()
+    ax1.axis('scaled')
+    ax1.set(xlim = (0-1,500+1), ylim = (500+1,0-1))
+    
+    # Draw the red local region boundary
+    local = patches.Rectangle((xregion,yregion),xsize,ysize,edgecolor='r', facecolor="none") 
+    ax1.add_patch(local)
+
+    # Prepare the PRM figure
+    xpath = [guide_path_local[i][0] for i in range(len(guide_path_local))]
+    ypath = [guide_path_local[i][1] for i in range(len(guide_path_local))]
+    # Draw the shortest path [[1,2],[2,3],...]
+    ax1.plot(xpath,ypath, c = 'b', marker = 'o')
+
+    # Draw the grounds and the ball / flag
+    for s_grd in s_grd_list:
+        ts = ax1.transData
+        tr = trans.Affine2D().rotate_deg_around(s_grd[0]+s_grd[2]/2,s_grd[1]+s_grd[3]/2, s_grd[4])
+        t = tr + ts # tr + ts (order is important)
+        rect = patches.Rectangle((s_grd[0],s_grd[1]),s_grd[2],s_grd[3], edgecolor='k', facecolor="k", transform = t)
+        ax1.add_patch(rect)
+    ball = plt.Circle((s_ball_ini[0]+15,s_ball_ini[1]+15),s_ball_ini[4], facecolor = 'orange') # +15 means the ball's center
+    ax1.add_artist(ball)
+    ax1.plot()
+    return ax1
+
+
+
+def ff(x,*y):    
+    a = x[0]
+    b = x[1]**2+y[0]*x[1]+y[1]
+    r = np.array([a,b])
+    return r
+
+
 if __name__=="__main__":
-    #u = FindOptimalInput([[60,80],[100,100]], 0.3, "rectangle", [0,0,50,150,0],[60,80,0,5,15])
-    u = FindOptimalInput([[60,80],[100,100]], 0.3, "circle", [0,0,50,50,0],[60,80,0,5,15])
-    print(type(u))
+    s_ball_ini = [60,80,0,5,15] # s_ball_ini (x,y,vx,vy,r)
+    ref = [100,100,0.3]
+    block_type = "rectangle"
+    block_state = [0,0,50,150,0]
+    model_error = np.array([10,10,0.1])
+    # FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s_ball_ini):
+    u = FindOptimalInput([[60,80],[100,100]], 0.3, "rectangle", [0,0,50,150,0],[60,80,0,5,15])
+    #u = FindOptimalInput([[60,80],[100,100]], 0.3, "circle", [0,0,50,50,0],[60,80,0,5,15])
+    print("u is {}".format(u))
+    y = (s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],s_ball_ini[4], ref[0],ref[1],ref[2], block_type, block_state)
+    f_actual = fmodel(u,*y)+model_error
+    error = ref - f_actual
+    e = np.matmul(error,error)
+    print("error is {}".format(e))
+    print(f_actual)
+    #a = np.array([1,2])
+    #print(ff(a,*(2,3)))
+    #f = nd.Jacobian(ff)
+    #print(f(a,*(4,3)))
+    unew = UpdateModelAfterFailure([[60,80],[100,100]], 0.3, "rectangle", [0,0,50,150,0],[60,80,0,5,15], u, f_actual)
+    print("new u is {}".format(unew))
+    f_new = fmodel(unew,*y)+model_error
+    print(f_new)
+    unew1 = UpdateModelAfterFailure([[60,80],[100,100]], 0.3, "rectangle", [0,0,50,150,0],[60,80,0,5,15], unew, f_new)
+    print("new u is {}".format(unew1))
+    f_new1 = fmodel(unew1,*y)+model_error
+    print(f_new1)
+
+    # Draw local region 
+    xregion = 100
+    yregion = 100
+    xsize = 200
+    ysize = 150
+    s_grd_list = [[60,150,80,10,0],[150,170,90,15,10]]
+    guide_path_local = [[100,100],[150,110],[200,150],[300,160]]
+    s_ball_ini = [100,100,10,0,15]
+    DrawLocalRegion(xregion, yregion, xsize, ysize, s_grd_list, guide_path_local, s_ball_ini)
+    plt.show()
 
 
 

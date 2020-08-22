@@ -39,7 +39,7 @@ def Ball2Line(ball, l, theta, vx, vy, w, v_thres = 0.01, w_thres = 0.01):
         status = "hitting"
     return ball, status
 
-def Ball2LineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, w, v_thres = 0.01, w_thres = 0.01):
+def Ball2LineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, w, v_thres = 1, w_thres = 1):
     # degree to radians 
     theta = theta/180*pi
     vt = vxball*cos(theta)+vyball*sin(theta)
@@ -61,7 +61,7 @@ def Ball2LineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, w, v_t
     return ball, status
 
 # 2) ball to circle (state: ball, input: x,y,v,w)
-def Ball2Circle(ball, r, x, y, vx, vy, w, v_thres = 0.05):
+def Ball2Circle(ball, r, x, y, vx, vy, w, v_thres = 1):
     vt = ball.vx*(y-ball.y)/(ball.radius+r) - ball.vy*(x-ball.x)/(ball.radius+r)
     v = vy*(x-ball.x)/(ball.radius+r)-vx*(y-ball.y)/(ball.radius+r)
     sin_theta = (y-ball.y)/(ball.radius+r)
@@ -74,7 +74,7 @@ def Ball2Circle(ball, r, x, y, vx, vy, w, v_thres = 0.05):
         ball.vy = vt*cos_theta-v*sin_theta
     return ball
 
-def Ball2CircleValue(xball, yball, vxball, vyball, rball, r, x, y, vx, vy, w, v_thres = 0.05):
+def Ball2CircleValue(xball, yball, vxball, vyball, rball, r, x, y, vx, vy, w, v_thres = 1):
     vt = vxball*(y-yball)/(rball+r) - vyball*(x-xball)/(rball+r)
     v = vy*(x-xball)/(rball+r)-vx*(y-yball)/(rball+r)
     sin_theta = (y-yball)/(rball+r)
@@ -113,7 +113,7 @@ def BallinAir(ball, l):
     ball.vy += g*l/ball.vx
     return ball
 
-def BallinAirValue(xball, yball, vxball, vyball, lx, ly):
+def BallinAirValue(xball, yball, vxball, vyball, lx, ly = 0):
     # l denotes the distance along x axis, l>0
     if lx == 0:
         yball += ly
@@ -131,23 +131,22 @@ def BallinEnvValue(xball, yball, vxball, vyball, rball, x, y, w, h, theta, xregi
     # Start from right or left
     if xball-xregion > xregion+xsize-xball:
         #From right
-        x0 = xball+xsize
-        x3 = xball
+        x0 = xregion+xsize        
+        x3 = xregion
     else:
         #From left
-        x0 = xball
-        x3 = xball+xsize
+        x0 = xregion
+        x3 = xregion+xsize
     # Find the boundary
     theta = theta/180*pi
     if x+w/2-w/2*cos(theta)+h/2*sin(theta) < x0:
-        xleft = x0
+        xleft = xregion
     else:
         xleft = x+w/2-w/2*cos(theta)+h/2*sin(theta)        
-    if x1+w*cos(theta) > x0+xsize:
-        xright = x0+xsize
+    if x+w/2+w*cos(theta) > x0+xsize:
+        xright = xregion+xsize
     else:
-        xright = x1+w*cos(theta)
-    #y1 = y+h/2-w/2*sin(theta)-h/2*cos(theta)    
+        xright = x+w/2+w*cos(theta)
     # Decide x1, x2
     if x0 == xball:
         x1 = xleft
@@ -155,8 +154,39 @@ def BallinEnvValue(xball, yball, vxball, vyball, rball, x, y, w, h, theta, xregi
     else:
         x1 = xright
         x2 = xleft
-    # Check collisions
-    ball = BallinAirValue(xball, yball, vxball, vyball, lx, ly)
+    # Check collisions at x1 / roughly predict vel at x1 (assume the collision at x1)
+    if x1 == x0:        
+        y1 = y+h/2-(x+w/2-x0)*tan(theta)-h/2*cos(theta)
+        state1 = BallinAirValue(x0, yabll, vxball, vyball, 0, y1-yball)
+        state1 = [x1, y1, vxball, state1[3]]
+        # get the state at x2 
+        l = (x2-x1)/cos(theta)
+        state2, _ = Ball2LineValue(state1[0], state1[1], state1[2], state1[3], 15, l, theta*180/pi, 0, 0, 0)
+        if x2 == x3:
+            state3 = state2
+        else:
+            state3 = BallinAirValue(state2[0], state2[1], state2[2], state2[3], x3-x2)
+    else:
+        y1 = y+h/2-w/2*abs(sin(theta))-h/2*cos(theta)
+        state1 = BallinAirValue(x0, yball, vxball, vyball, x1-x0)
+        if y1 > state1[1]:
+            # collision happens
+            state1 = BallinAirValue(x0, yball, vxball, vyball, x1-x0)
+            state1 = [x1, y1, vxball, state1[3]]
+            # get the state at x2 
+            l = (x2-x1)/cos(theta)
+            state2, _ = Ball2LineValue(state1[0], state1[1], state1[2], state1[3], 15, l, theta*180/pi, 0, 0, 0)
+            if x2 == x3:
+                state3 = state2
+            else:
+                state3 = BallinAirValue(state2[0], state2[1], state2[2], state2[3], x3-x2)
+        else:
+            # no collision happens
+            state2 = state1
+            state3 = BallinAirValue(x0, yball, vxball, vyball, x3-x0, ysize)
+            print("no contact")
+
+    return state3, state2, state1
 
 
 # B) Blocks
@@ -258,8 +288,8 @@ def Circle2Line(block1, block2, l, vx, vy, w):
 
 def f(x,*y):
     # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w
-    # y[0] = ball.x, y[1] = ball.y, y[2] = ball.vx, y[3] = ball.vy
-    state_ball, _ = Ball2LineValue(y[0],y[1],y[2],y[3],x[0],x[1],x[2],x[3],x[4])
+    # y[0] = ball.x, y[1] = ball.y, y[2] = ball.vx, y[3] = ball.vy, y[4] = ball.r
+    state_ball, _ = Ball2LineValue(y[0],y[1],y[2],y[3],y[4],x[0],x[1],x[2],x[3],x[4])
     error = (state_ball[0]-100)**2+(state_ball[1]-100)**2+0*state_ball[2]**2+0*state_ball[3]**2 
     return error
 
@@ -267,7 +297,7 @@ def f(x,*y):
 if __name__ == "__main__":
     #ball, status = Ball2Line(ball, l, theta, vx, vy, w, v_thres = 0.01, w_thres = 0.01)
     x0 = [10,0,0,0,0]
-    y = (50,50,0,15)
+    y = (50,50,0,15,15)
     search_bound = Bounds([0,-90,-np.inf,-np.inf,-np.inf],[np.inf,90,np.inf,np.inf,np.inf])
     f_nonlin = lambda x:x[0]*x[1]
     nonlin_constr = NonlinearConstraint(f_nonlin,0,np.inf)
@@ -277,3 +307,21 @@ if __name__ == "__main__":
 
     abspath = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
     print(abspath)
+
+    xball = 0
+    yball = 0
+    vxball = 30
+    vyball = 5
+    rball = 15
+    xregion = 0
+    yregion = 0
+    xsize = 50
+    ysize = 50
+    x = 10
+    y = 30
+    w = 35
+    h = 5 
+    theta = 10
+
+    state3, state2, state1 = BallinEnvValue(xball, yball, vxball, vyball, rball, x, y, w, h, theta, xregion, yregion, xsize, ysize)
+    print(state3, state2, state1)
