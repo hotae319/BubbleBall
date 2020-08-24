@@ -4,8 +4,8 @@ from math import pi, cos, sin
 
 from functions.path_planning import path_planning, re_planning
 import functions.get_keydirection as keydirection
-from functions.obj_class import Ball, metalBlock, woodBlock, powerUps
-from functions.parsing_movableobjects_levels import parsing_objects, run_simulation
+from functions.physics.obj_class import Ball, metalBlock, woodBlock, powerUps
+from functions.parsing_movableobjects_levels import parsing_objects, run_simulation, logging_trajectory
 from functions.prediction import CheckCollisionWithFixed, ImpactMapBall2Fixed, ImpactMapBall2Wood
 from functions.physics.common.const import g, dt
 from functions.localregion import SortoutEnv

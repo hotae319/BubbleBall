@@ -12,11 +12,12 @@
 
 import numpy as np
 import os, sys
+abspath = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
 if __name__ == "__main__":
     import parsing_movableobjects_levels as ps
 else:
     from . import parsing_movableobjects_levels as ps
-abspath = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
+
 
 
 '''
