@@ -1,0 +1,19 @@
+﻿{
+  "classicLevelNumber": 2,
+  "logFile": "bb.log",
+  "physicsDrawMode": "normal",
+  "enableManualControl": false,
+  "enableScreenshots": false,
+  "screenshotDirectory": "./screenshots/",
+  "screenshotFrameFrequency": 20,
+  "timeoutMillis": 10000,
+  "stopWhenBallsExitScreen": true,
+  "objectSetup": [
+    {
+      "unique": "0",
+      "x": 12,
+      "y": 83,
+      "r": 90
+    }
+  ]
+}
