@@ -73,9 +73,10 @@ def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, error_thre
     # It can be changed to the total prediction traj
     x_pred_max = max(x_predicted_traj_new)
     y_pred_max = max(y_predicted_traj_new)
-    x_guide_max = guide_path_local[idx_local_end][0]
-    y_guide_max = guide_path_local[idx_local_end][1]
-    x_local = max(x_pred_max,x_guide_max)
+    x_guide_max = guide_path_local[idx_local_end-idx_local_start][0]
+    y_guide_max = guide_path_local[idx_local_end-idx_local_start][1]
+    x_local = x_guide_max
+    #x_local = max(x_pred_max,x_guide_max)
     y_local = max(y_pred_max,y_guide_max)
     return guide_path_local, direction_end, x_local, y_local, idx_pick_start, idx_pick_end
 
@@ -175,8 +176,8 @@ def ConvertUopt2Ureal(u_input, block_type, w_block, h_block, s_ball_ini):
         l = u_input[0]
         width = w_block
         height = h_block
-        theta = u_input[1]
-        u_actual = [xball+l*cos(theta)-width/2-width/2*cos(theta)-height/2*sin(theta), yball+l*sin(theta)-height/2-width/2*sin(theta)+height/2*cos(theta), theta]
+        theta = u_input[1]/180*pi
+        u_actual = [xball+rball-rball*sin(theta)+l*cos(theta)-width/2-width/2*cos(theta)-height/2*sin(theta), yball+rball+rball*cos(theta)+l*sin(theta)-height/2-width/2*sin(theta)+height/2*cos(theta), u_input[1]]
         vel_desired = [u_input[2],u_input[3],u_input[4]]
     elif block_type == "woodcircle" or "metalcircle":
         # u_input = [x, y, vx, vy, w]
@@ -202,7 +203,7 @@ def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s
     if block_type == "metalrectangle" or "woodrectangle":
         # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w
         # block_state = [x,y,w,h,rot]
-        x0 = [10,0,0,0,0]        
+        x0 = [130,0,0,0,0]        
         # bound : 0 < l < width, -90<theta<90
         search_bound = Bounds([0,-90,-np.inf,-np.inf,-np.inf],[block_state[2],90,np.inf,np.inf,np.inf])
         # nonlinear constr : l and theta have same sign
@@ -348,7 +349,14 @@ class Drawing:
             rect = patches.Rectangle((obj.x,obj.y),obj.w,obj.h, edgecolor='y', facecolor="y", transform = t)
             self.ax1.add_patch(rect) 
             self.ax1.plot()
-
+        elif obj.__class__.__name__=="metalBlock":
+            ts = self.ax1.transData
+            tr = trans.Affine2D().rotate_deg_around(obj.x+obj.w/2,obj.y+obj.h/2, obj.rot)
+            t = tr + ts # tr + ts (order is important)
+            rect = patches.Rectangle((obj.x,obj.y),obj.w,obj.h, edgecolor='gray', facecolor="gray", transform = t)
+            self.ax1.add_patch(rect) 
+            self.ax1.plot()
+        return self.ax1
 
 def ff(x,*y):    
     a = x[0]
@@ -419,8 +427,10 @@ if __name__=="__main__":
     # 0) Prerequisite : guide path
     guide_path = [[10,10],[10,20],[30,30]]
     state_input = [] # decided ahead in previous local regions
+    state_input.append(["AO6G", 0,0,0])
     # 1) Predict the ball's traj, load a traj. from a log file
     id_grd, s_grd_list, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
+    #run_simulation(level_select, movable_ID, ID_dict, state_input)
     traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", 2)       
     id_ball = id_total[0]
     s_ball = s_total[0] # [x,y,w,h,rot], we use only w and h here
@@ -433,13 +443,17 @@ if __name__=="__main__":
     x_predicted_traj = [ball_traj[j][3] for j in range(len(ball_traj))]
     y_predicted_traj = [ball_traj[j][4] for j in range(len(ball_traj))]
     guide_path_local, direction_end, x_local, y_local, idx_pick_start, idx_pick_end = SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj)
-    xregion = guide_path_local[0][0]
-    yregion = guide_path_local[0][1]
+    xregion = min(guide_path_local[0][0],x_predicted_traj[idx_pick_start])
+    yregion = min(guide_path_local[0][1],x_predicted_traj[idx_pick_end])
     xsize = x_local-xregion
     ysize = y_local-yregion
     # s_ball_ini = [x,y,vx,vy,r] : so we have to change the order because log file has vx,vy first
     s_ball_ini = [ball_traj[idx_pick_start][3],ball_traj[idx_pick_start][4],ball_traj[idx_pick_start][0],ball_traj[idx_pick_start][1],15]
     
+    display = Drawing(xregion, yregion, xsize, ysize, s_grd_list, guide_path, s_ball_ini)
+    display.drawlocalregion()
+    plt.show(block=False)
+    plt.pause(5)    
 
     # While the local region fails, do a loop
     pick_main_idx = 0
@@ -455,7 +469,12 @@ if __name__=="__main__":
     desired_state = [u_actual[0],u_actual[1],w_block,h_block,u_actual[2],vel_desired[0],vel_desired[1],vel_desired[2]]
     # 5) Simulate the main block and observe the traj. without supporting blocks
     # state_input = ([[id1, x1, y1, theta1],[id2, x2, y2, theta2],...]) list
-    state_input.append([pick_main_idx, u_actual[0], u_actual[1], u_actual[2]])
+    del state_input[-1]
+    state_input.append([input_id, u_actual[0], u_actual[1], u_actual[2]])
+    metalrect = metalBlock(u_actual[0],u_actual[1],w_block,h_block,u_actual[2])
+    display.drawobject(metalrect)
+    plt.show(block=False)
+    plt.pause(15)
     #run_simulation(level_select, movable_ID, ID_dict, state_input)
     # observe again   
     traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", 2)   
@@ -478,8 +497,8 @@ if __name__=="__main__":
     # 9) Check the error between guide_path_local and mainblock_traj at x_local    
     # 10) Error bound is satisfied --> success / violated --> update
     # f_actual = [x,y,dir]
-    
-    unew = UpdateModelAfterFailure(guide_path_local, direction_end, block_type, block_state, s_ball_ini, u_optimal, f_actual)
+
+    #unew = UpdateModelAfterFailure(guide_path_local, direction_end, block_type, block_state, s_ball_ini, u_optimal, f_actual)
 
 
 

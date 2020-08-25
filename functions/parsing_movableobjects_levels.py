@@ -252,9 +252,9 @@ def run_simulation(level, movable_ID, ID_dict, state_input = [], logfileName = "
             # input_object["objectSetup"].append({ "unique": "AO6G", "x": 210, "y": 50, "r": 0 })
 
     # Update the automate.json file with what we wanna enter as an initial configuration
-    with open('automate.json', 'w', encoding = 'utf-8-sig') as automate_file:
+    with open('{}/automate.json'.format(abspath), 'w', encoding = 'utf-8-sig') as automate_file:
         json.dump(input_object, automate_file, indent = 2)
-    with open('automate.json', 'rt', encoding = 'utf-8-sig') as automate_file:
+    with open('{}/automate.json'.format(abspath), 'rt', encoding = 'utf-8-sig') as automate_file:
         input_object = json.load(automate_file) 
     obj_init = input_object["objectSetup"][0]
     print("The changed obj_init is {}".format(obj_init))
@@ -262,7 +262,7 @@ def run_simulation(level, movable_ID, ID_dict, state_input = [], logfileName = "
     # Exectue finally
     #subprocess.run("./bubble-ball")
     #subprocess.run(["ls", "-l"])
-    a = subprocess.Popen("./bubble-ball")
+    a = subprocess.Popen("./bubble-ball", cwd = abspath)
     time.sleep(5)
     a.terminate()
     gg = input("Check for python works after the bubble-ball execution")
@@ -454,7 +454,7 @@ def logging_trajectory(filename, level_select):
         traj_list.append([])
 
     # sort by ID
-    for k in range(0,n_trace,n_obj):
+    for k in range(0,n_trace-n_obj,n_obj):
         for i in range(n_obj):
             temp = trace[k+i]
             if temp[1] == "trace":
