@@ -7,7 +7,7 @@ else:
     from . physics.common.const import g, dt
     from . planning_algo.utils import CheckInside, CheckIntersect, CheckIntersectPolygon, RotatePts, GetDistance
 
-def CheckCollisionWithFixed(ball, block_list, n_timestep):
+def CheckCollisionWithFixed(ball, block_list, type_block_list, n_timestep):
     # state_list = [block1, block2, ...] / block_k = [x,y,w,h,rot]
     # ball's path line
     # suppose the rectangle (circle : no rot, triangle : exclude one point)
@@ -16,15 +16,23 @@ def CheckCollisionWithFixed(ball, block_list, n_timestep):
     ball_post = ball.updateValue([0,ball.m*g], n_timestep)[0:2]
     bool_intersect = []
     angle = 0
-    for i in range(len(block_list)):
+    for i in range(len(block_list)):        
         if block_list[i][4] == 0:
-            x = block_list[i][0]
-            y = block_list[i][1]
-            w = block_list[i][2]
-            h = block_list[i][3]
-            pts = [[x,y],[x+w,y],[x+w,y+h],[x,y+h]]
+            print(block_list)
+            if type_block_list[i] == "metalrtriangle" or "woodrtriangle":
+                x = block_list[i][0]
+                y = block_list[i][1]
+                w = block_list[i][2]
+                h = block_list[i][3]
+                pts = [[x,y],[x+w,y+h],[x,y+h]]
+            else:
+                x = block_list[i][0]
+                y = block_list[i][1]
+                w = block_list[i][2]
+                h = block_list[i][3]
+                pts = [[x,y],[x+w,y],[x+w,y+h],[x,y+h]]
         else:
-            pts = RotatePts(block_list[i])
+            pts = RotatePts(block_list[i],type_block_list[i])
         check, line, pt_int = CheckIntersectPolygon(pts, ball_pre, ball_post)
         if check == True:   
             bool_intersect.append(i)

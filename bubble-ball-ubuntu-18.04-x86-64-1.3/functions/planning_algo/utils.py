@@ -7,27 +7,94 @@ def GetDistance(p1,p2):
     dist = sqrt((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)
     return dist
 
-def RotatePts(state):
+def LineFrom2pts(p1,p2):
+    a = p1[1]-p2[1]
+    b = p2[0]-p1[0]
+    c = p1[0]*p2[1]-p2[0]*p1[1]
+    line = [a,b,c]
+    return line
+def LineFromState(state, block_type):
+    x = state[0]
+    y = state[1]
+    w = state[2]
+    h = state[3]
+    theta = state[4]/180*pi
+
+    pts = RotatePts(state, block_type)   
+    print(block_type) 
+    if block_type in ("metalrectangle", "woodrectangle", "ground"):        
+        # generally, the direction of width
+        p1 = pts[1]
+        p2 = pts[2]
+        line = LineFrom2pts(p1,p2)
+    elif block_type == "metalrtriangle" or block_type == "woodrtriangle":
+        # generally, the direction of hypotenuse
+        p1 = pts[0]
+        p2 = pts[1]
+        line = LineFrom2pts(p1,p2)
+    return line
+
+def GetDistance2block(pt, state, obj_type):
+    if obj_type == "ground":
+        pts = RotatePts(state, obj_type)
+        dist_min = 500
+        for i in range(len(pts)):
+            dist_temp = GetDistance(pt, pts[i])
+            if dist_temp < dist_min:
+                dist_min = dist_temp
+                idx_min = i
+        # get 2 line
+        line1 = LineFrom2pts(pts[idx_min],pts[idx_min-1])
+        if idx_min+1 >= len(pts):
+            line2 = LineFrom2pts(pts[idx_min],pts[idx_min+1-len(pts)])
+        else:
+            line2 = LineFrom2pts(pts[idx_min],pts[idx_min+1])
+        # get 2 perpendicular feet
+        _, p1 = GetFootPerpendicular(pt, line1)
+        _, p2 = GetFootPerpendicular(pt, line2)
+        # calculate the angle
+        if (pts[idx_min][0]-p1[0])*(pts[idx_min-1][0]-p1[0])+(pts[idx_min][1]-p1[1])*(pts[idx_min-1][1]-p1[1])<0:
+            dist_min = GetDistance(pt, p1)
+            pt_min = p1
+        elif (pts[idx_min][0]-p2[0])*(pts[idx_min+1][0]-p2[0])+(pts[idx_min][1]-p2[1])*(pts[idx_min+1][1]-p2[1])<0:
+            dist_min = GetDistance(pt, p2)
+            pt_min = p2
+        else:
+            dist_min = GetDistance(pt, pts[idx_min])
+            pt_min = pts[idx_min] 
+    return dist_min, pt_min
+
+def GetFootPerpendicular(pt, line):
+    a = line[0]
+    b = line[1]
+    c = line[2]
+    dist = abs(a*pt[0]+b*pt[1]+c)/sqrt(a**2+b**2)
+    x = (b**2*pt[0]-a*b*pt[1]-a*c)/(a**2+b**2)
+    y = (-b*a*pt[0]+a**2*pt[1]-b*c)/(a**2+b**2)
+    pt_foot = [x,y]
+    return dist, pt_foot
+
+def RotatePts(state, block_type):
     # [x,y,w,h,rot]
     x = state[0]
     y = state[1]
     w = state[2]
     h = state[3]    
     theta = state[4]/180*pi  
-    if w == 75:   
+    if block_type == "metalrtriangle" or block_type == "woodrtriangle":  
         alpha = pi/4 # isosceles triangle
         cx = x + w/2
         cy = y + h/2
         l = sqrt(w**2+h**2)/2
         pts = [[cx+l*cos(theta+alpha),cy+l*sin(theta+alpha)],[cx-l*cos(theta+alpha),cy-l*sin(theta+alpha)],
-        [cx-l*cos(theta-alpha),cy-l*sin(theta-alpha)]] # [p1,p2,p3] = [[x,y],p2,p3], counter clockwise
+        [cx-l*cos(theta-alpha),cy-l*sin(theta-alpha)]] # [p1,p2,p3] = [[x+w,y+h],p2,p3], counter clockwise
     else: 
         alpha = atan(h/w) # we can replace it with using cos(a+b) = cos(a)cos(b)-sin(a)sin(b)
         cx = x + w/2
         cy = y + h/2
         l = sqrt(w**2+h**2)/2
         pts = [[cx+l*cos(theta+alpha),cy+l*sin(theta+alpha)],[cx+l*cos(theta-alpha),cy+l*sin(theta-alpha)],
-        [cx-l*cos(theta+alpha),cy-l*sin(theta+alpha)],[cx-l*cos(theta-alpha),cy-l*sin(theta-alpha)]] # [p1,p2,p3,p4] = [[x,y],p2,p3,p4], counterclockwise
+        [cx-l*cos(theta+alpha),cy-l*sin(theta+alpha)],[cx-l*cos(theta-alpha),cy-l*sin(theta-alpha)]] # [p1,p2,p3,p4] = [[x+w,y+h],p2,p3,p4], counterclockwise
     return pts
 
 def LineInequality(p1,p2,ptest):

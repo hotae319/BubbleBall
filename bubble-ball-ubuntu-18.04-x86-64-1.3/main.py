@@ -14,6 +14,9 @@ from functions.localregion import SortoutEnv
 '''
 level = 9
 id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level)
+
+type_obj_list = ["ground" for i in range(len(id_grd))]
+
 # s_total = [s_ball, s_flag, s_metal, s_wood, s_woodtri, s_speedupu, s_speedupd, s_speedupl, s_speedupr, s_slowdown, s_gravity, s_gravitydown, s_spring, s_teleport]
 # s_ball = [x,y,w,h,rot]
 '''
@@ -32,12 +35,12 @@ prm, shortest_path, sampling_list, ax1 = path_planning(level, n_sample, k1 , map
 2. model prediction
 '''
 
-def TrajPredict(ball, s_obs_fixed, n_iter, n_timestep = 1):
+def TrajPredict(ball, s_obs_fixed, type_obj_list, n_iter, n_timestep = 1):
     # Iterative update
     # s_obs_fixed : [x,y,w,h,rot] / s_obs_moving : [x,y,w,h,rot,vx,vy,wrot]
     for i in range(n_iter):
         # Check collision
-        collision, collision_angle = CheckCollisionWithFixed(ball, s_obs_fixed, n_timestep)
+        collision, collision_angle = CheckCollisionWithFixed(ball, s_obs_fixed, type_obj_list, n_timestep)
         print("{0} and pos: {1}, vel: {2}, angle: {3}".format(collision, [ball.x,ball.y], [ball.vx, ball.vy], collision_angle))
         # Update
         if not collision:       
@@ -67,7 +70,7 @@ def TrajPredict(ball, s_obs_fixed, n_iter, n_timestep = 1):
 # Initialize
 ball = Ball(s_total[0][0]+15,s_total[0][1]+15,0,0) # +15 means the center of the ball
 flag = s_total[1]
-xtraj, ytraj = TrajPredict(ball, s_grd, 100, 3)
+xtraj, ytraj = TrajPredict(ball, s_grd, type_obj_list, 100, 3)
 plt.scatter(xtraj,ytraj, s = 2, c = 'green')
 #plt.show()
 
@@ -84,9 +87,10 @@ s_obs = []
 for i in range(len(s_grd)):
     s_obs.append(s_grd[i])
 s_obs.append(s_input)
+type_obj_list.append(ID_dict[movable_ID[0]])
 print(s_obs)
 ball = Ball(s_total[0][0]+15,s_total[0][1]+15,0,0)
-xtraj, ytraj = TrajPredict(ball, s_obs, 300, 3)
+xtraj, ytraj = TrajPredict(ball, s_obs, type_obj_list, 300, 3)
 plt.scatter(xtraj,ytraj, s = 3, c = 'm')
 
 # Draw a new block 
