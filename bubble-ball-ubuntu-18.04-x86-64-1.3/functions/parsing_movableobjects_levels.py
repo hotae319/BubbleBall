@@ -263,7 +263,7 @@ def run_simulation(level, movable_ID, ID_dict, state_input = [], logfileName = "
     #subprocess.run("./bubble-ball")
     #subprocess.run(["ls", "-l"])
     a = subprocess.Popen("./bubble-ball", cwd = abspath)
-    time.sleep(5)
+    time.sleep(10.5)
     a.terminate()
     #gg = input("Check for python works after the bubble-ball execution")
 
@@ -392,12 +392,20 @@ def logging_trajectory(filename, level_select):
             j = k - 1
             # search for 1st correspoding ID's pre/post state   
             if content[k][2] in ID_list:
-                # pre
-                while content[j][2] != content[k][2]:                                   
-                    j = j - 1
-                s_pre1 = content[j][3:9] + ID_state_matching['{}'.format(content[k][2])][2:4] #[vx vy w x y theta] + [width height]
+                while content[j][1] != "trace" and content[j][1] != "levelStart":
+                    j -= 1                
+                if content[j][1] == "levelStart":
+                    state_init = ID_state_matching['{}'.format(content[k][2])]
+                    s_pre1 = [0,0,0,state_init[0],state_init[1],state_init[4]] + state_init[2:4] #[vx vy w x y theta] + [width height]    
+                else:
+                    # pre
+                    while content[j][2] != content[k][2]:                                   
+                        j = j - 1
+                    s_pre1 = content[j][3:9] + ID_state_matching['{}'.format(content[k][2])][2:4] #[vx vy w x y theta] + [width height]
                 # post
-                j = k - 1
+                j = k - 1 
+                while content[j][1] != "trace" and content[j][1] != "levelComplete":
+                    j += 1
                 while content[j][2] != content[k][2] and end_flag != True:              
                     j = j + 1
                     if j >= n_log-1:
@@ -418,12 +426,20 @@ def logging_trajectory(filename, level_select):
             # search for 2nd correspoding ID's pre/post state
             j = k - 1
             if content[k][3] in ID_list:
-                # pre
-                while content[j][2] != content[k][3]:                   
-                    j = j - 1
-                s_pre2 = content[j][3:9] + ID_state_matching['{}'.format(content[k][3])][2:4] #[vx vy w x y theta] + [width height]
+                while content[j][1] != "trace" and content[j][1] != "levelStart":
+                    j -= 1                
+                if content[j][1] == "levelStart":
+                    state_init = ID_state_matching['{}'.format(content[k][2])]
+                    s_pre2 = [0,0,0,state_init[0],state_init[1],state_init[4]] + state_init[2:4] #[vx vy w x y theta] + [width height]    
+                else:
+                    # pre
+                    while content[j][2] != content[k][3]:                   
+                        j = j - 1
+                    s_pre2 = content[j][3:9] + ID_state_matching['{}'.format(content[k][3])][2:4] #[vx vy w x y theta] + [width height]
                 # post
                 j = k - 1
+                while content[j][1] != "trace" and content[j][1] != "levelComplete":
+                    j += 1
                 while content[j][2] != content[k][3] and end_flag != True:                                  
                     j = j + 1
                     if j >= n_log-1:

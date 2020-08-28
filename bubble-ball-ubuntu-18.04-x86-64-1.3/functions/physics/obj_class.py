@@ -48,7 +48,7 @@ class metalBlock:
         self.fric = 0.5
 
 class woodBlock:
-    def __init__(self, x, y, w, h, rot, vx, vy, w_rot, block_type):
+    def __init__(self, x, y, w, h, rot, vx = 0, vy = 0, w_rot = 0, block_type = "rectangle"):
         self.x = x
         self.y = y
         self.w = w

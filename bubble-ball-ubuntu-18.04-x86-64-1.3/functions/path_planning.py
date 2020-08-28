@@ -182,7 +182,7 @@ if __name__ == "__main__":
     k1 = 6
     k2 = 10
     n_exclude = 1
-    prm, shortest_path, sampling_list, ax1 = path_planning(level, n_sample, k1 , map_size, [350,100])    
+    prm, shortest_path, sampling_list, ax1 = path_planning(level, n_sample, k1 , map_size)    
     #re_planning(prm, level, shortest_path, k2, n_exclude)    
-    
+    print(shortest_path)
     plt.show()

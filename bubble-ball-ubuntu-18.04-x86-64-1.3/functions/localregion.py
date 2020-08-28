@@ -18,53 +18,72 @@ import random
 from math import cos, sin, pi, sqrt, atan
 import os, sys
 if __name__ == "__main__":
-    from planning_algo.utils import RotatePts, LineFromState, GetDistance2block, GetFootPerpendicular
+    from planning_algo.utils import RotatePts, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular
     from parsing_movableobjects_levels import parsing_objects, run_simulation, logging_trajectory
     from physics.obj_class import Ball, metalBlock, woodBlock, powerUps
     from physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue
     from physics.common.const import g, dt
 else:
-    from . planning_algo.utils import RotatePts, LineFromState, GetDistance2block, GetFootPerpendicular
+    from . planning_algo.utils import RotatePts, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular
     from . parsing_movableobjects_levels import parsing_objects, run_simulation, logging_trajectory
     from . physics.obj_class import Ball, metalBlock, woodBlock, powerUps
     from . physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue
     from . physics.common.const import g, dt
 
 
-def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, error_threshold = 250):
+def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list, error_threshold = 250):
     # predicted traj : xtraj = [1,2,...], ytraj = [2,3,...]
     # guide_path(shortest_path): [[1,2][2,3]...]
     num_pred_traj = len(x_predicted_traj)
     num_guide_path = len(guide_path)
+    dist_list_pred = []
     dist_list = []
     error_list = []
-    sum_dist = 0    
+    sum_dist_pred = 0
+    sum_dist = 0   
     x_predicted_traj_new = []
     y_predicted_traj_new = []
+    # save the intervals of pred_traj and guide_path
+    for i in range(num_pred_traj-1):
+        xdist_pred = x_predicted_traj[i]-x_predicted_traj[i+1]
+        ydist_pred = y_predicted_traj[i]-y_predicted_traj[i+1]
+        dist_pred = sqrt(xdist_pred**2+ydist_pred**2)
+        sum_dist_pred += dist_pred
+        dist_list_pred.append(sum_dist_pred)
     for i in range(num_guide_path-1):
         xdist = guide_path[i][0]-guide_path[i+1][0]
         ydist = guide_path[i][1]-guide_path[i+1][1]
         dist = sqrt(xdist**2+ydist**2)
         sum_dist += dist
         dist_list.append(sum_dist)      
+
     # pick the pts of predicted traj to compute the tracking error
     # The entire predicted traj. is split into several parts which are proportional to interval of Tg
     for i in range(num_guide_path-1):
-        id_pick = int(num_pred_traj*dist_list[i]/sum_dist)-1
+        l = dist_list[i]/sum_dist*sum_dist_pred
+        id_pick = 1
+        while dist_list_pred[id_pick-1]<= l and dist_list_pred[id_pick] > l:
+            id_pick += 1
+        #id_pick = int(num_pred_traj*dist_list[i]/sum_dist)-1 # consider only the number of elements, not intervals
         x_predicted_traj_new.append(x_predicted_traj[id_pick])
         y_predicted_traj_new.append(y_predicted_traj[id_pick])
         error_list.append(sqrt((guide_path[i][0]-x_predicted_traj_new[i])**2+(guide_path[i][1]-y_predicted_traj_new[i])**2))
     # new index for new list (the number is same with the guide path)
     idx_local_start = 0
     idx_local_end = 0
+    print("error list {}".format(error_list))
+    print("guide {}".format(guide_path))
+    print(x_predicted_traj_new)
     while error_list[idx_local_start] < error_threshold/4:
         idx_local_start += 1
     while error_list[idx_local_end] < error_threshold and idx_local_end < len(error_list)-1:
         idx_local_end += 1
     # Decide the local region
     # id_pick : predicted traj's idx (outside the function, we need to choose s_ball_init)
-    idx_pick_start = int(num_pred_traj*dist_list[idx_local_start]/sum_dist)
-    idx_pick_end = int(num_pred_traj*dist_list[idx_local_end]/sum_dist)
+    #idx_pick_start = int(num_pred_traj*dist_list[idx_local_start]/sum_dist)
+    #idx_pick_end = int(num_pred_traj*dist_list[idx_local_end]/sum_dist)
+    idx_pick_start = y_predicted_traj.index(y_predicted_traj_new[idx_local_start]) # if it is repeated, return the first value
+    idx_pick_end = y_predicted_traj.index(y_predicted_traj_new[idx_local_end])
 
     guide_path_local = guide_path[idx_local_start:idx_local_end+1] 
     # direction of the end element of local guide path, angle of atan(y/x)
@@ -78,8 +97,14 @@ def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, error_thre
     x_guide_max = guide_path_local[idx_local_end-idx_local_start][0]
     y_guide_max = guide_path_local[idx_local_end-idx_local_start][1]
     x_local_max = x_guide_max
+    y_local_max = max(y_pred_max, y_guide_max)
     #x_local = max(x_pred_max,x_guide_max)
-    y_local_max = max(y_pred_max,y_guide_max)
+    x_local_min = min(guide_path_local[0][0],x_predicted_traj[idx_pick_start])
+    y_local_min = min(guide_path_local[0][1],y_predicted_traj[idx_pick_start])
+    # Adjust the local region's y value
+    while not SortoutEnv(x_local_max, y_local_max, x_local_min, y_local_min, s_grd_list):
+        y_local_max += 100
+
     return guide_path_local, direction_end, x_local_max, y_local_max, idx_pick_start, idx_pick_end
 
 def SortoutEnv(x_local_max, y_local_max, x_local_min, y_local_min, s_grd_list):
@@ -92,7 +117,6 @@ def SortoutEnv(x_local_max, y_local_max, x_local_min, y_local_min, s_grd_list):
             if pt[0] <= x_local_max and pt[0] >= x_local_min and pt[1]<=y_local_max and pt[1] >=y_local_min:
                 env_local.append(s_grd_list[i])
                 break
-
     return env_local
 
 def PickMainBlock(movable_ID, ID_dict, guide_path_local, env_local):
@@ -116,12 +140,12 @@ def fobj(x,*y):
     ref = [y[5],y[6],y[7]]  
 
     # All rollouts consist of "gravity or environment -> input -> gravity or environment"
-    if y[8] == "metalrectangle" or "woodrectangle":
+    if y[8] in ("metalrectangle" , "woodrectangle"):
         # 1) retangle
         # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w
         #  l should be lower than y[9][3] = w 
         state_ball, _ = Ball2LineValue(y[0],y[1],y[2],y[3],y[4],x[0],x[1],x[2],x[3],x[4])
-    elif y[8] == "woodcircle" or "metalcircle":
+    elif y[8] == "woodcircle" or y[8] == "metalcircle":
         # 2) circle
         # x[0] = x, x[1] = y, x[2] = vx, x[3] = vy, x[4] = w
         # r is given as y[9][2]/2
@@ -151,12 +175,12 @@ def fmodel(x,*y):
     ref = [y[5],y[6],y[7]]  
 
     # All rollouts consist of "gravity or environment -> input -> gravity or environment"
-    if y[8] == "metalrectangle" or "woodrectangle":
+    if y[8] in ("metalrectangle" , "woodrectangle"):
         # 1) retangle
         # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w
         #  l should be lower than y[9][3] = w 
         state_ball, _ = Ball2LineValue(y[0],y[1],y[2],y[3],y[4],x[0],x[1],x[2],x[3],x[4])
-    elif y[8] == "woodcircle" or "metalcircle":
+    elif y[8] == "woodcircle" or y[8] == "metalcircle":
         # 2) circle
         # x[0] = x, x[1] = y, x[2] = vx, x[3] = vy, x[4] = w
         # r is given as y[9][2]/2
@@ -177,7 +201,7 @@ def ConvertUopt2Ureal(u_input, block_type, w_block, h_block, s_ball_ini):
     vxball = s_ball_ini[2]
     vyball = s_ball_ini[3]
     rball = s_ball_ini[4]
-    if block_type == "metalrectangle" or "woodrectangle":
+    if block_type in ("metalrectangle" , "woodrectangle"):
         # u_input = [ l, theta, vx, vy, w]
         l = u_input[0]
         width = w_block
@@ -185,7 +209,7 @@ def ConvertUopt2Ureal(u_input, block_type, w_block, h_block, s_ball_ini):
         theta = u_input[1]/180*pi
         u_actual = [xball+rball-rball*sin(theta)+l*cos(theta)-width/2-width/2*cos(theta)-height/2*sin(theta), yball+rball+rball*cos(theta)+l*sin(theta)-height/2-width/2*sin(theta)+height/2*cos(theta), u_input[1]]
         vel_desired = [u_input[2],u_input[3],u_input[4]]
-    elif block_type == "woodcircle" or "metalcircle":
+    elif block_type == "woodcircle" or block_type ==  "metalcircle":
         # u_input = [x, y, vx, vy, w]
         u_actual = [u_input[0],u_input[1],0]
         vel_desired = [u_input[2],u_input[3],u_input[4]]
@@ -206,7 +230,7 @@ def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s
     # Given parameters
     # y = (ball(5),ref(3),block type, block state)
     y = (s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],s_ball_ini[4], ref[0],ref[1],ref[2], block_type, block_state)        
-    if block_type == "metalrectangle" or "woodrectangle":
+    if block_type == "metalrectangle" or block_type == "woodrectangle":
         # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w
         # block_state = [x,y,w,h,rot]        
         x0 = [block_state[2],0,0,0,0]        
@@ -219,7 +243,7 @@ def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s
         res = minimize(fobj ,x0, args = y, bounds = search_bound, constraints = nonlin_constr)
         print(res)                
         u_input = res.x
-    elif block_type == "woodcircle" or "metalcircle":
+    elif block_type == "woodcircle" or block_type == "metalcircle":
         # x[0] = x, x[1] = y, x[2] = vx, x[3] = vy, x[4] = w
         x0 = [xball+block_state[2]/2,yball+block_state[2]/2,0,0,0]
         # bound : we need a condition to collide and x,y should be inside the local region
@@ -353,6 +377,7 @@ class Drawing:
         return self.ax1
     def drawobject(self, obj):
         if obj.__class__.__name__ == "woodBlock":
+            # we have to differentiate block_type
             ts = self.ax1.transData
             tr = trans.Affine2D().rotate_deg_around(obj.x+obj.w/2,obj.y+obj.h/2, obj.rot)
             t = tr + ts # tr + ts (order is important)
@@ -373,6 +398,19 @@ def ff(x,*y):
     b = x[1]**2+y[0]*x[1]+y[1]
     r = np.array([a,b])
     return r
+
+def MoveBlock2CloestBlock(block_state, block_type, env_local, env_type_list = []):
+    # Check the distance between the optimal main block and the ground
+    dist_min = 500
+    dist_vector_min = [0,0]
+    for s_grd_local in env_local:
+        dist_vector, dist = GetDistanceBlock2Block(block_state, s_grd_local, block_type, 'ground')
+        if dist < dist_min:
+            dist_min = dist
+            dist_vector_min = dist_vector
+    # Move the block to the point which is closest to the main block
+    u_move = [block_state[0]+dist_vector_min[0], block_state[1]+dist_vector_min[1], block_state[4]]
+    return u_move
 
 
 if __name__=="__main__":
@@ -433,16 +471,19 @@ if __name__=="__main__":
 
 
     # Test for a local region
-    level_select = 2
+    level_select = 4
     # 0) Prerequisite : guide path
-    guide_path = [[20,135],[50,155],[110,150],[180,170],[230,185],[280,175],[310,185],[340,195],[400,200]]
+    #guide_path = [[20,135],[50,155],[110,150],[180,170],[230,185],[280,175],[310,185],[340,195],[400,200]]
+    guide_path = [[419, 285], [439, 254], [440, 240], [424, 217], [383, 195], [338, 154], [331, 153], [290, 169], [266, 133], [230, 153], [220, 141], [178, 144], [142, 136], [120, 126], [99, 120], [75, 100]]
+    guide_path.reverse()
     state_input = [] # decided ahead in previous local regions
-    state_input.append(["AO6G", 0,0,0])
+    #state_input.append(["AO6G", 0,0,0])
     
     # 1) Predict the ball's traj, load a traj. from a log file
     id_grd, s_grd_list, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
+    state_input.append(["{}".format(movable_ID[0]), 0,0,0])
     run_simulation(level_select, movable_ID, ID_dict, state_input)
-    traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", 2)       
+    traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", level_select)       
     id_ball = id_total[0]
     s_ball = s_total[0] # [x,y,w,h,rot], we use only w and h here
     # check the order of the ID in the ID_list
@@ -454,9 +495,10 @@ if __name__=="__main__":
     # 2) Choose a local region and cut-off the guide path locally
     x_predicted_traj = [ball_traj[j][3] for j in range(len(ball_traj))]
     y_predicted_traj = [ball_traj[j][4] for j in range(len(ball_traj))]
-    guide_path_local, direction_end, x_local_max, y_local_max, idx_pick_start, idx_pick_end = SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj)
+        
+    guide_path_local, direction_end, x_local_max, y_local_max, idx_pick_start, idx_pick_end = SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list)
     xregion = min(guide_path_local[0][0],x_predicted_traj[idx_pick_start])
-    yregion = min(guide_path_local[0][1],x_predicted_traj[idx_pick_end])
+    yregion = min(guide_path_local[0][1],y_predicted_traj[idx_pick_start])
     xsize = x_local_max-xregion
     ysize = y_local_max-yregion
     # sort out the grounds' states from the total s_grd_list
@@ -483,50 +525,115 @@ if __name__=="__main__":
     h_block = block_state[3]
     u_actual, vel_desired = ConvertUopt2Ureal(u_optimal, block_type, w_block, h_block, s_ball_ini)
 
-    # Check the distance between the optimal main block and the ground
     block_state = [u_actual[0], u_actual[1], w_block, h_block, u_actual[2]]
-    pts = RotatePts(block_state, block_type) # block's vertices
-    # counter-clockwise , choose two points which are below
-    p1 = pts[3] # usually left
-    p2 = pts[0] # usually right
-    dist_list_p1 = []
-    dist_list_p2 = []
-    for s_grd_local in env_local:
-        line = LineFromState(s_grd_local, 'ground') # ground's lines
-        print(line)
-        print(RotatePts(s_grd_local,line))
-        print(p1)
-        dist_cur, _ = GetFootPerpendicular(p1, line)
-        dist_list_p1.append(dist_cur)
-    for s_grd_local in env_local:
-        line = LineFromState(s_grd_local, 'ground') # ground's lines
-        dist_cur, _ = GetFootPerpendicular(p2, line)
-        dist_list_p2.append(dist_cur)
-    print(env_local)
-    print(dist_list_p1)
-    pt_list_p1 = []
-    for s_grd_local in env_local:
-        dist_min, pt_min = GetDistance2block(p1, s_grd_local, 'ground')
-        dist_list_p1.append(dist_min)
-        pt_list_p1.append(pt_min)
-    print(dist_list_p1)
-    print(pt_min)
+    # Move the block to the point which is closest to the main block
+    u_move = MoveBlock2CloestBlock(block_state, block_type, env_local, env_type_list = [])
+
+    print(u_actual, u_move)
+    block_state_move = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
+    # Decide the region below the main block (roughly we can use [x,y,x+w,ymax])
+    pts_move = RotatePts(block_state_move, block_type)
+    x_move_list = [pts_move[i][0] for i in range(len(pts_move))]
+    y_move_list = [pts_move[i][1] for i in range(len(pts_move))]
+    x_move_min = min(x_move_list)
+    y_move_min = min(y_move_list)
+    x_move_max = max(x_move_list)
+    y_move_max = 500
+
+    # Check which grounds exist below the mainblock now among locaa_env
+    ground_below = SortoutEnv(x_move_max, y_move_max, x_move_min, y_move_min, env_local)
+    # Check the other point's shortest distance upto the ground
+    if u_move[0] >= u_actual[0]:
+        # It means the block move to the right. we will check left point
+        pt_left = pts_move[3]
+        dist_min = 500
+        for grd in ground_below:
+            dist_below, pt_below = GetDistancePt2Block(pt_left, grd, 'ground')
+            if dist_below < dist_min:
+                dist_min = dist_below
+                pt_min = pt_below
+                grd_choice = grd
+    else:
+        pt_right = pts_move[0]
+        dist_min = 500
+        for grd in ground_below:
+            dist_below, pt_below = GetDistancePt2Block(pt_left, grd, 'ground')
+            if dist_below < dist_min:
+                dist_min = dist_below
+                pt_min = pt_below
+                grd_choice = grd
+    # Compare the distance with some sizes of block
+    idx_order_from_closest_to_farthest = []
+    gap_list = []
+    if dist_min < 20:
+        pass
+    else:
+        for pick_support_idx in range(num_movable):
+            if pick_support_idx == pick_main_idx:
+                pass
+            else:
+                # Pick supporting blocks / we can add some priorities    
+                support_id = movable_ID[pick_support_idx]
+                support_block_type = ID_dict[support_id] # 'metalrectangle'
+                support_block_state = ID_state_matching[support_id] # [x,y,w,h,rot]
+                w_temp = support_block_state[2]
+                h_temp = support_block_state[3]
+                gap_temp = min(abs(dist_min-w_temp), abs(dist_min-h_temp))
+                if not gap_list:
+                    gap_list.append(gap_temp)
+                    idx_order_from_closest_to_farthest.append(pick_support_idx)
+                else:
+                    for j in range(len(gap_list)):
+                        if gap_list[j] >= gap_temp:
+                            gap_list.insert(j, gap_temp)
+                            idx_order_from_closest_to_farthest.insert(j, pick_support_idx)
+    print(idx_order_from_closest_to_farthest)
 
     # desired_state(x,y,w,h,rot,vx,vy,w_rot)
-    mainblock_desired_state = [u_actual[0],u_actual[1],w_block,h_block,u_actual[2],vel_desired[0],vel_desired[1],vel_desired[2]]
-    
+    mainblock_desired_state = [u_move[0],u_move[1],w_block,h_block,u_move[2],vel_desired[0],vel_desired[1],vel_desired[2]]
+    # rough guess of configuration of supporting blocks
+    support_idx = idx_order_from_closest_to_farthest[0]
+    support_id = movable_ID[support_idx]
+    support_type = ID_dict[support_id] # 'metalrectangle'
+    support_state = ID_state_matching[support_id] # [x,y,w,h,rot]
+    w_support = support_state[2]
+    h_support = support_state[3]
+    if u_move[0] >= u_actual[0]: # move right, left point is left
+        x_support = pt_min[0]+w_support/2
+        y_support = pt_min[1]-h_support
+    else:
+        x_support = pt_min[0]-w_support/2
+        y_support = pt_min[1]-h_support
+    theta_support = grd_choice[4] # same with the angle of underlying ground
+
     # 5) Simulate the main block and observe the traj. without supporting blocks
     # state_input = ([[id1, x1, y1, theta1],[id2, x2, y2, theta2],...]) list
+    # previous input is removed but, we have to leave the previous local region's input
     del state_input[-1]
-    state_input.append([input_id, u_actual[0], u_actual[1], u_actual[2]])
-    metalrect = metalBlock(u_actual[0],u_actual[1],w_block,h_block,u_actual[2])
-    display.drawobject(metalrect)
+    # input the main block
+    state_input.append([input_id, u_move[0], u_move[1], u_move[2]])
+    # input the supporting block
+    state_input.append([support_id, x_support, y_support, theta_support])
+    if block_type == "metalrectangle" or block_type == "metalrtriangle":
+        metalblock = metalBlock(u_move[0],u_move[1],w_block,h_block,u_move[2])
+        display.drawobject(metalblock)
+    elif block_type == "woodrectangle" or block_type == "woodrtriangle":
+        woodblock = woodBlock(u_move[0],u_move[1],w_block,h_block,u_move[2])
+        display.drawobject(woodblock)
+    if support_type == "metalrectangle" or support_type == "metalrtriangle":
+        metalblock = metalBlock(x_support,y_support,w_support,h_support,theta_support)
+        display.drawobject(metalblock)
+    elif support_type == "woodrectangle" or support_type == "woodrtriangle":
+        woodblock = woodBlock(x_support,y_support,w_support,h_support,theta_support)
+        display.drawobject(woodblock)
+
     plt.show(block=False)
-    plt.pause(2)
+    plt.pause(12)
     run_simulation(level_select, movable_ID, ID_dict, state_input)
     # observe again about the main trajectory   
-    traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", 2)   
+    traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", level_select)   
     mainblock_traj = traj_list[pick_main_idx]
+    contact_idx = 0
     for collision_element in collision:
         # [time, collision type, objA, objB]
         if (collision_element[2] == input_id and collision_element[3] != id_ball) or (collision_element[3] == input_id and collision_element[2] != id_ball):
@@ -541,7 +648,7 @@ if __name__=="__main__":
     else:
         p2 = ComputeSupportForces(block_type, mainblock_desired_state, mainblock_traj, contact_idx)
         #desired_state(x,y,w,h,rot,vx,vy,w_rot)
-    
+    print(p2)
     # 7) Assign the supporting blocks    
     for pick_support_idx in range(num_movable):
         if pick_support_idx == pick_main_idx:

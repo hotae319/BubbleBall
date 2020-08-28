@@ -151,6 +151,8 @@ class PRM:
         while pre != self.p_start:
             pre = came_from["{}".format(pre)]
             shortest.append(pre)
+        # change the order from the first to the last
+        shortest.reverse()
         return path, shortest, came_from
     def ExcludePoints(self, point_list, k):
         '''
