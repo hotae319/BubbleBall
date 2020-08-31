@@ -37,7 +37,8 @@ def LineFromState(state, block_type):
 def GetDistancePt2Block(pt, state, obj_type):
     if obj_type == "ground":
         pts = RotatePts(state, obj_type)
-        dist_min = 500
+        dist_min = 700
+        idx_min = 0
         for i in range(len(pts)):
             dist_temp = GetDistance(pt, pts[i])
             if dist_temp < dist_min:
@@ -71,7 +72,8 @@ def GetDistancePt2Block(pt, state, obj_type):
 def GetDistanceBlock2Block(obj1_state, obj2_state, obj1_type, obj2_type):
     pts1 = RotatePts(obj1_state, obj1_type)
     pts2 = RotatePts(obj2_state, obj2_type)
-    dist_min = 500    
+    dist_min = 700
+    dist_vector = [0,0]    
     for pt1 in pts1:
         dist, pt_min = GetDistancePt2Block(pt1, obj2_state, obj2_type)
         if dist < dist_min:
@@ -139,6 +141,17 @@ def CheckIntersect(p1,p2,q1,q2):
     else:
         bool_intersect = False
     return bool_intersect
+
+def CheckIntersectInequality(p1,p2,q1,q2):
+    # Check if the line p1p2 and the line q1q2 intersect    
+    eq1 = LineInequality(p1,p2,q1)*LineInequality(p1,p2,q2)
+    eq2 = LineInequality(q1,q2,p1)*LineInequality(q1,q2,p2)
+    if (eq1<=0 and eq2<0) or (eq1<0 and eq2<=0):
+        bool_intersect = 1 # True
+    else:
+        bool_intersect = -1
+    return bool_intersect
+
 def GetIntersectPt(p1,p2,q1,q2):
     # only when the intersection exists
     x1 = p1[0]
@@ -191,6 +204,38 @@ def CheckInside(point_list, ptest):
         bool_inside = False
     return bool_inside
 
+def CheckInsideInequality(point_list, ptest):
+    '''
+    Check if the point is inside or outside of covex polygon
+    '''
+    # point_list [[p1,p2,...]] = [[x1,y1],[x2,y2],....]
+    n_pt = len(point_list)
+    x_cm = 0
+    y_cm = 0
+    bool_inside = 100 # 1 true
+    for pt in point_list:
+        x_cm = x_cm + pt[0]
+        y_cm = y_cm + pt[1]
+    # Find the center of polygon
+    x_cm = x_cm/n_pt
+    y_cm = y_cm/n_pt
+    pcm = [x_cm,y_cm]
+    ineq_compare = []
+    for i in range(n_pt-1):
+        # choose 2 elements in a row from the list
+        p1 = point_list[i]
+        p2 = point_list[i+1]
+        ineq_compare.append(LineInequality(p1,p2,pcm))
+        if LineInequality(p1,p2,pcm)*LineInequality(p1,p2,ptest) < 0:
+            bool_inside = -100
+    # the segment between the last point and the first point
+    p1 = point_list[n_pt-1]
+    p2 = point_list[0]
+    ineq_compare.append(LineInequality(p1,p2,pcm))
+    if LineInequality(p1,p2,pcm)*LineInequality(p1,p2,ptest) < 0:
+        bool_inside = -100    
+    return bool_inside
+
 def CheckIntersectPolygon(point_list, p1, p2):
     # Check if the line segment intersect the polygon or not
     bool_intersect = False
@@ -212,6 +257,7 @@ def CheckIntersectPolygon(point_list, p1, p2):
         line_intersect.append([q1,q2])
         pts_intersect.append(GetIntersectPt(p1,p2,q1,q2))
     return bool_intersect, line_intersect, pts_intersect
+
 
 def ClosestNeighbor(point_list, ptest, k):
     # Choose k nearest points from ptest

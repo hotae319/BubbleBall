@@ -48,7 +48,10 @@ def Ball2LineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, w, v_t
     if abs(v) <= v_thres and abs(w) <= w_thres:
         xball = xball+l*cos(theta)
         yball = yball+l*sin(theta)
-        vend = sqrt(vt**2+2*g*sin(theta))
+        if vt**2+2*g*l*sin(theta) >0:
+            vend = sqrt(vt**2+2*g*l*sin(theta))
+        else:
+            vend = 0
         vxball = vend*cos(theta)
         vyball = vend*sin(theta)
         status = "rolling"
@@ -115,7 +118,7 @@ def BallinAir(ball, l):
 
 def BallinAirValue(xball, yball, vxball, vyball, lx, ly = 0):
     # l denotes the distance along x axis, l>0
-    if lx == 0:
+    if lx == 0 or abs(vxball) < 0.5 :
         yball += ly
         vyball += sqrt(vyball**2+2*g*ly)
     else:

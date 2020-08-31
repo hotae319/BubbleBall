@@ -176,7 +176,7 @@ def re_planning(prm, level, shortest_path_pre, k = 6, n_exclude = 1):
     return shortest_path, sampling_list
 
 if __name__ == "__main__":
-    level = 4
+    level = 5
     n_sample = 500
     map_size = [0,500,0,700]
     k1 = 6
