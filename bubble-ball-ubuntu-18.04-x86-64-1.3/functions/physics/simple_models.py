@@ -46,15 +46,20 @@ def Ball2LineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, w, v_t
     v = vy*cos(theta)-vx*sin(theta)+l*w # v means the velocity of the contact point of the block 
     # rolling on the block
     if abs(v) <= v_thres and abs(w) <= w_thres:
-        xball = xball+l*cos(theta)
-        yball = yball+l*sin(theta)
-        if vt**2+2*g*l*sin(theta) >0:
-            vend = sqrt(vt**2+2*g*l*sin(theta))
+        if abs(vt) >= 0.5:
+            xball = xball+l*cos(theta)
+            yball = yball+l*sin(theta)
+            if vt**2+2*g*l*sin(theta) >0:
+                vend = sqrt(vt**2+2*g*l*sin(theta))
+            else: # opposite slope
+                vend = 0
+            vxball = vend*cos(theta)
+            vyball = vend*sin(theta)
+            status = "rolling"
         else:
-            vend = 0
-        vxball = vend*cos(theta)
-        vyball = vend*sin(theta)
-        status = "rolling"
+            vxball = 0
+            vyball = 0
+            status = "stop"
     # hitting the ball
     else:
         vxball = v*sin(theta)+vt*cos(theta)

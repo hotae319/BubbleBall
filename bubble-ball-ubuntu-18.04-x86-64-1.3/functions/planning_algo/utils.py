@@ -35,7 +35,7 @@ def LineFromState(state, block_type):
     return line
 
 def GetDistancePt2Block(pt, state, obj_type):
-    if obj_type == "ground":
+    if obj_type == "ground" or obj_type == "woodrectangle" or obj_type == "metalrectangle":
         pts = RotatePts(state, obj_type)
         dist_min = 700
         idx_min = 0
@@ -70,6 +70,7 @@ def GetDistancePt2Block(pt, state, obj_type):
     return dist_min, pt_min
 
 def GetDistanceBlock2Block(obj1_state, obj2_state, obj1_type, obj2_type):
+    # from obj1 to obj2
     pts1 = RotatePts(obj1_state, obj1_type)
     pts2 = RotatePts(obj2_state, obj2_type)
     dist_min = 700
@@ -79,12 +80,14 @@ def GetDistanceBlock2Block(obj1_state, obj2_state, obj1_type, obj2_type):
         if dist < dist_min:
             dist_min = dist
             dist_vector = [pt_min[0]-pt1[0],pt_min[1]-pt1[1]]
-    for pt2 in pts2:
-        dist, pt_min = GetDistancePt2Block(pt2, obj1_state, obj1_type)
-        if dist < dist_min:
-            dist_min = dist
-            dist_vector = [pt_min[0]-pt2[0],pt_min[1]-pt2[1]]
-    return dist_vector, dist
+            #print("distmin {}".format(dist_min))
+    # for pt2 in pts2:
+    #     dist, pt_min = GetDistancePt2Block(pt2, obj1_state, obj1_type)
+    #     if dist < dist_min:
+    #         dist_min = dist
+    #         dist_vector = [pt_min[0]-pt2[0],pt_min[1]-pt2[1]]            
+            #print("dist_min {}".format(dist_min))
+    return dist_vector, dist_min
 
 def GetFootPerpendicular(pt, line):
     a = line[0]
@@ -150,7 +153,7 @@ def CheckIntersectInequality(p1,p2,q1,q2):
         bool_intersect = 1 # True
     else:
         bool_intersect = -1
-    return bool_intersect
+    return [eq1, eq2]
 
 def GetIntersectPt(p1,p2,q1,q2):
     # only when the intersection exists

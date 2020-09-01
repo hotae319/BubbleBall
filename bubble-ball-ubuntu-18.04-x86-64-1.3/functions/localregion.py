@@ -214,11 +214,11 @@ def fobj_constr(x,*y):
         state_ball = BallinAirValue(state_ball_collision[0],state_ball_collision[1],state_ball_collision[2],state_ball_collision[3],x_distance,y_distance)    
         xu = y[9][2]
     # For f2 (last region after control input)
-    # xpost = y[14][0] - xu - xpre  
+    xpost = y[14][0] - xu - xpre  
     # if y[12] == "ground":
-    #     state_ball, _ = Ball2LineValue(y[0],y[1],y[2],y[3],y[4], xpost/cos(y[13][4]/180*pi), y[13][4], 0, 0, 0)
+    #     state_ball, _ = Ball2LineValue(state_ball[0],state_ball[1],state_ball[2],state_ball[3], y[4], xpost/cos(y[13][4]/180*pi), y[13][4], 0, 0, 0)
     # else: #elif y[12] == "air": we need to decide more expressive functions based on observations 
-    #     state_ball= BallinAirValue(y[0],y[1],y[2],y[3],xpost)
+    #     state_ball= BallinAirValue(state_ball[0],state_ball[1],state_ball[2],state_ball[3],xpost)
 
     if abs(state_ball[2]) <0.01: # if ball.vx is too low
         direction = pi/2
@@ -305,14 +305,14 @@ def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s
     if block_type == "metalrectangle" or block_type == "woodrectangle":
         # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w
         # block_state = [x,y,w,h,rot]        
-        x0 = [block_state[2],0,0,0,0]        
+        x0 = [block_state[2],2,0,0,0]        
         # bound : 0 < l < width, -90<theta<90
         search_bound = Bounds([0,-90,-np.inf,-np.inf,-np.inf],[block_state[2],90,np.inf,np.inf,np.inf])
         # nonlinear constr : l and theta have same sign
         f_nonlin = lambda x:x[0]*x[1]
         nonlin_constr = NonlinearConstraint(f_nonlin,0,np.inf)
         # solve optimization
-        res = minimize(fobj ,x0, args = y, bounds = search_bound, constraints = nonlin_constr)
+        res = minimize(fobj ,x0, args = y, method ='trust-constr' , bounds = search_bound, constraints = nonlin_constr)
         print(res)                
         u_input = res.x
     elif block_type == "woodcircle" or block_type == "metalcircle":
@@ -385,25 +385,35 @@ def FindOptimalInputConstrained(guide_path_local, direction_end, block_type, blo
 
         # Interference constraint        
         for env_element in env_local:
-            pts = RotatePts(env_element, "ground")
-            for i in range(4):
-                f_interference1 = lambda x: CheckInsideInequality(pts, pts_block(x)[i])
-                f_interference2 = lambda x: CheckInsideInequality(pts_block(x), pts[i])
-                constr_interference1 = NonlinearConstraint(f_interference1, -np.inf, 0)
-                constr_interference2 = NonlinearConstraint(f_interference2, -np.inf, 0)
-                constr_list.append(constr_interference1)
-                constr_list.append(constr_interference2)
-            for i in range(3):
-                f_interference3 = lambda x: CheckIntersectInequality(pts_block(x)[i], pts_block(x)[i+1], pts[i], pts[i+1])
-                constr_interference3 = NonlinearConstraint(f_interference3, -np.inf, 0)
-                constr_list.append(constr_interference3)
+            # for radius (size growing downwards)
+            # to avoid referring to the address of list directly
+            width_element = env_element[2] + 30
+            height_element = env_element[3] + 30
+            state_element = [env_element[0], env_element[1], width_element, height_element, env_element[4]]
+            pts = RotatePts(state_element, "ground")
+            # for i in range(4):
+            #     f_interference1 = lambda x: CheckInsideInequality(pts, pts_block(x)[i])
+            #     f_interference2 = lambda x: CheckInsideInequality(pts_block(x), pts[i])
+            #     constr_interference1 = NonlinearConstraint(f_interference1, -np.inf, 0)
+            #     constr_interference2 = NonlinearConstraint(f_interference2, -np.inf, 0)
+            #     constr_list.append(constr_interference1)
+            #     constr_list.append(constr_interference2)
+            # for i in range(4):
+            #     for j in range(4):
+            #         f_interference3 = lambda x: CheckIntersectInequality(pts_block(x)[i], pts_block(x)[i-1], pts[j], pts[j-1])
+            #         constr_interference3 = NonlinearConstraint(f_interference3, -np.inf, 0)
+            #         constr_list.append(constr_interference3)
 
-        f_test = lambda x: [pts_block(x)[0][0]-450, pts_block(x)[1][0]-450, pts_block(x)[2][0]-450]
-        constr_test = NonlinearConstraint(f_test, -np.inf, 0)
-        constr_list.append(constr_test)
-        f_test = lambda x : 10-x[1]
-        constr_test = NonlinearConstraint(f_test, -np.inf, 0)
-        constr_list.append(constr_test)
+        # pts = RotatePts(env_local[2], "ground")
+        # f_test = lambda x: LineInequality(pts[1],pts[2],pts_block(x)[0])
+        # constr_test = NonlinearConstraint(f_test, -np.inf, 0)
+        # constr_list.append(constr_test)
+        # f_test = lambda x: [pts_block(x)[0][0]-450, pts_block(x)[1][0]-450, pts_block(x)[2][0]-450]
+        # constr_test = NonlinearConstraint(f_test, -np.inf, 0)
+        # constr_list.append(constr_test)
+        # f_test = lambda x : 2-x[1]
+        # constr_test = NonlinearConstraint(f_test, -np.inf, 0)
+        # constr_list.append(constr_test)
         # solve optimization
         res = minimize(fobj_constr ,x0, args = y, bounds = search_bound, constraints = constr_list)
         print(res)                
@@ -577,9 +587,10 @@ def MoveBlock2CloestBlock(block_state, block_type, env_local, env_type_list = []
         dist_vector, dist = GetDistanceBlock2Block(block_state, s_grd_local, block_type, 'ground')
         if dist < dist_min:
             dist_min = dist
-            dist_vector_min = dist_vector
+            dist_vector_min = dist_vector           
     # Move the block to the point which is closest to the main block
     u_move = [block_state[0]+dist_vector_min[0], block_state[1]+dist_vector_min[1], block_state[4]]
+    print("dist min{}".format(dist_min))
     return u_move
 
 
@@ -641,12 +652,12 @@ if __name__=="__main__":
 
 
     # Test for a local region
-    level_select = 5
+    level_select = 4
     # 0) Prerequisite : guide path
     #guide_path = [[20,135],[50,155],[110,150],[180,170],[230,185],[280,175],[310,185],[340,195],[400,200]]
-    #guide_path = [[419, 285], [439, 254], [440, 240], [424, 217], [383, 195], [338, 154], [331, 153], [290, 169], [266, 133], [230, 153], [220, 141], [178, 144], [142, 136], [120, 126], [99, 120], [75, 100]]
-    #guide_path.reverse()
-    guide_path = [[210, 100], [241, 119], [284, 139], [304, 129], [348, 137], [372, 144], [391, 151], [435, 153], [476, 167], [446, 210], [407, 223], [389, 227], [377, 260], [345, 276], [310, 274], [276, 263], [255, 283], [243, 287], [209, 294], [176, 288], [159, 292], [139, 293], [117, 300], [86, 302], [59, 292], [34, 285]]
+    guide_path = [[419, 285], [439, 254], [440, 240], [424, 217], [383, 195], [338, 154], [331, 153], [290, 169], [266, 133], [230, 153], [220, 141], [178, 144], [142, 136], [120, 126], [99, 120], [75, 100]]
+    guide_path.reverse()
+    #guide_path = [[210, 100], [241, 119], [284, 139], [304, 129], [348, 137], [372, 144], [391, 151], [435, 153], [476, 167], [446, 210], [407, 223], [389, 227], [377, 260], [345, 276], [310, 274], [276, 263], [255, 283], [243, 287], [209, 294], [176, 288], [159, 292], [139, 293], [117, 300], [86, 302], [59, 292], [34, 285]]
     state_input = [] # decided ahead in previous local regions
     #state_input.append(["AO6G", 0,0,0])
     
@@ -715,26 +726,27 @@ if __name__=="__main__":
     print("guide_path_local {}".format(guide_path_local))
 
     # 4) Solve the optimization problem to obtain the required state of the main block
-    # u_optimal = FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s_ball_ini)
-    u_optimal = FindOptimalInputConstrained(guide_path_local, direction_end, block_type, block_state, s_ball_ini, env_type_pre, env_state_pre, env_type_post, env_state_post, env_local, local_region)
+    u_optimal = FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s_ball_ini)
+    #u_optimal = FindOptimalInputConstrained(guide_path_local, direction_end, block_type, block_state, s_ball_ini, env_type_pre, env_state_pre, env_type_post, env_state_post, env_local, local_region)
     w_block = block_state[2]
     h_block = block_state[3]
     # after f1, get the initial state just before entering fu
     # We can use the actual data and get the y value at x(u_optimal[5])
-    if env_type_pre == "ground":
-        state_ball, _ = Ball2LineValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],s_ball_ini[4], u_optimal[5]/cos(env_state_pre[4]/180*pi), env_state_pre[4], 0, 0, 0)
-    else: #elif y[10] == "air":
-        if abs(s_ball_ini[2]) < 0.5:
-            state_ball = BallinAirValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],0,u_optimal[5])
-        else:
-            state_ball = BallinAirValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],u_optimal[5])
-    s_ball_mid = [state_ball[0], state_ball[1], state_ball[2], state_ball[3], s_ball_ini[4]]
-    u_actual, vel_desired = ConvertUopt2Ureal(u_optimal, block_type, w_block, h_block, s_ball_mid)
-    print("sball ini, sball mid {0}, {1}".format(s_ball_ini, s_ball_mid))
+    # if env_type_pre == "ground":
+    #     state_ball, _ = Ball2LineValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],s_ball_ini[4], u_optimal[5]/cos(env_state_pre[4]/180*pi), env_state_pre[4], 0, 0, 0)
+    # else: #elif y[10] == "air":
+    #     if abs(s_ball_ini[2]) < 0.5:
+    #         state_ball = BallinAirValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],0,u_optimal[5])
+    #     else:
+    #         state_ball = BallinAirValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],u_optimal[5])
+    # s_ball_mid = [state_ball[0], state_ball[1], state_ball[2], state_ball[3], s_ball_ini[4]]
+    # u_actual, vel_desired = ConvertUopt2Ureal(u_optimal, block_type, w_block, h_block, s_ball_mid)
+    u_actual, vel_desired = ConvertUopt2Ureal(u_optimal, block_type, w_block, h_block, s_ball_ini)
+    # print("sball ini, sball mid {0}, {1}".format(s_ball_ini, s_ball_mid))
     block_state = [u_actual[0], u_actual[1], w_block, h_block, u_actual[2]]
     # Move the block to the point which is closest to the main block
     u_move = MoveBlock2CloestBlock(block_state, block_type, env_local, env_type_list = [])
-
+    print("u_actual, u_move")
     print(u_actual, u_move)
     block_state_move = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
     # Decide the region below the main block (roughly we can use [x,y,x+w,ymax])
@@ -764,7 +776,7 @@ if __name__=="__main__":
         pt_right = pts_move[0]
         dist_min = 500
         for grd in ground_below:
-            dist_below, pt_below = GetDistancePt2Block(pt_left, grd, 'ground')
+            dist_below, pt_below = GetDistancePt2Block(pt_right, grd, 'ground')
             if dist_below < dist_min:
                 dist_min = dist_below
                 pt_min = pt_below
@@ -834,6 +846,7 @@ if __name__=="__main__":
         display.drawobject(metalblock)
     elif block_type == "woodrectangle" or block_type == "woodrtriangle":
         woodblock = woodBlock(u_move[0],u_move[1],w_block,h_block,u_move[2])
+        print(u_move)
         display.drawobject(woodblock)
     if support_type == "metalrectangle" or support_type == "metalrtriangle":
         metalblock = metalBlock(x_support,y_support,w_support,h_support,theta_support)
