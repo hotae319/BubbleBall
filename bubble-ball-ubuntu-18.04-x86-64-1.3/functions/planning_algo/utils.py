@@ -36,6 +36,7 @@ def LineFromState(state, block_type):
 
 def GetDistancePt2Block(pt, state, obj_type):
     if obj_type == "ground" or obj_type == "woodrectangle" or obj_type == "metalrectangle":
+        inside = 0
         pts = RotatePts(state, obj_type)
         dist_min = 700
         idx_min = 0
@@ -54,12 +55,20 @@ def GetDistancePt2Block(pt, state, obj_type):
         _, p1 = GetFootPerpendicular(pt, line1)
         _, p2 = GetFootPerpendicular(pt, line2)
         # calculate the angle
-        if (pts[idx_min][0]-p1[0])*(pts[idx_min-1][0]-p1[0])+(pts[idx_min][1]-p1[1])*(pts[idx_min-1][1]-p1[1])<0:
+        if (pts[idx_min][0]-p1[0])*(pts[idx_min-1][0]-p1[0])+(pts[idx_min][1]-p1[1])*(pts[idx_min-1][1]-p1[1])<0 and (pts[idx_min][0]-p2[0])*(pts[(idx_min+1)%len(pts)][0]-p2[0])+(pts[idx_min][1]-p2[1])*(pts[(idx_min+1)%len(pts)][1]-p2[1])>=0:
             dist_min = GetDistance(pt, p1)
             pt_min = p1
-        elif (pts[idx_min][0]-p2[0])*(pts[(idx_min+1)%len(pts)][0]-p2[0])+(pts[idx_min][1]-p2[1])*(pts[(idx_min+1)%len(pts)][1]-p2[1])<0:
+        elif (pts[idx_min][0]-p2[0])*(pts[(idx_min+1)%len(pts)][0]-p2[0])+(pts[idx_min][1]-p2[1])*(pts[(idx_min+1)%len(pts)][1]-p2[1])<0 and (pts[idx_min][0]-p1[0])*(pts[idx_min-1][0]-p1[0])+(pts[idx_min][1]-p1[1])*(pts[idx_min-1][1]-p1[1])>=0:
             dist_min = GetDistance(pt, p2)
             pt_min = p2
+        elif (pts[idx_min][0]-p1[0])*(pts[idx_min-1][0]-p1[0])+(pts[idx_min][1]-p1[1])*(pts[idx_min-1][1]-p1[1])<0 and (pts[idx_min][0]-p2[0])*(pts[(idx_min+1)%len(pts)][0]-p2[0])+(pts[idx_min][1]-p2[1])*(pts[(idx_min+1)%len(pts)][1]-p2[1])<0:
+            # inside the block
+            if GetDistance(pt,p1)< GetDistance(pt,p2):
+                dist_min = GetDistance(pt,p1)
+                pt_min = p1
+            else:
+                dist_min = GetDistance(pt, p2)
+                pt_min = p2
         else:
             dist_min = GetDistance(pt, pts[idx_min])
             pt_min = pts[idx_min] 
@@ -75,11 +84,13 @@ def GetDistanceBlock2Block(obj1_state, obj2_state, obj1_type, obj2_type):
     pts2 = RotatePts(obj2_state, obj2_type)
     dist_min = 700
     dist_vector = [0,0]    
+    pt1_min = []
     for pt1 in pts1:
         dist, pt_min = GetDistancePt2Block(pt1, obj2_state, obj2_type)
         if dist < dist_min:
             dist_min = dist
             dist_vector = [pt_min[0]-pt1[0],pt_min[1]-pt1[1]]
+            pt1_min = pt1
             #print("distmin {}".format(dist_min))
     # for pt2 in pts2:
     #     dist, pt_min = GetDistancePt2Block(pt2, obj1_state, obj1_type)
@@ -87,7 +98,7 @@ def GetDistanceBlock2Block(obj1_state, obj2_state, obj1_type, obj2_type):
     #         dist_min = dist
     #         dist_vector = [pt_min[0]-pt2[0],pt_min[1]-pt2[1]]            
             #print("dist_min {}".format(dist_min))
-    return dist_vector, dist_min
+    return dist_vector, dist_min, pt1_min
 
 def GetFootPerpendicular(pt, line):
     a = line[0]

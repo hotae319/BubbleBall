@@ -132,7 +132,7 @@ def parsing_objects(level_select):
                 n_woodtri += 1
                 s_woodtri.append(a[1:6])
                 id_woodtri.append(a[6])
-                ID_dict['{}'.format(a[6])] = 'woodtriangle'
+                ID_dict['{}'.format(a[6])] = 'woodrtriangle'
             elif a[0][0:7] == 'catapul':
                 n_wood = n_wood + 1
                 s_wood.append(a[1:6])
