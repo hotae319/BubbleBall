@@ -308,6 +308,24 @@ def ConvertUopt2Ureal(u_input, block_type, w_block, h_block, s_ball_ini):
         u_actual = [xball-(w_block*sqrt(2)-l)*cos(theta), yball+ rball*2, theta]
     return u_actual, vel_desired
 
+def MakeF1withTraj(traj_sorted, x1):
+    # traj_sorted : [[vx,vy,w,x,y,rot],...] / x1 can be either positive or negative
+    x_init = traj_sorted[0][3]
+    y_init = traj_sorted[0][4]
+    max_i = len(traj_sorted)
+    i = 0
+    while (traj_sorted[i][3] <= x_init + x1 and traj_sorted[i+1][3] <= x_init + x1 and i< max_i-2) or (traj_sorted[i][3] > x_init + x1 and traj_sorted[i+1][3] > x_init + x1 and i < max_i-2):
+        i += 1
+    if i == max_i-2:
+        # traj. consists of only y movement.
+        i = 0
+        while (traj_sorted[i][4] <= y_init + x1 and traj_sorted[i+1][4] <= y_init + x1 and i< max_i-2) or (traj_sorted[i][4] > y_init + x1 and traj_sorted[i+1][4] > y_init + x1 and i < max_i-2):
+            i += 1
+    # convert to the state type
+    print("i {}".format(i))
+    state_x1 = [traj_sorted[i][3],traj_sorted[i][4],traj_sorted[i][0],traj_sorted[i][1]]
+    return state_x1
+
 def FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s_ball_ini, env_local):
     # the size of the local region and the environment in the local region can be input
     # But, we want to minimize the intervention of environment.
@@ -749,7 +767,7 @@ if __name__=="__main__":
     # 1) Predict the ball's traj, load a traj. from a log file
     id_grd, s_grd_list, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
     state_input.append(["{}".format(movable_ID[0]), 0,0,0])
-    run_simulation(level_select, movable_ID, ID_dict, state_input)
+    #run_simulation(level_select, movable_ID, ID_dict, state_input)
     traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", level_select)       
     id_ball = id_total[0]
     s_ball = s_total[0] # [x,y,w,h,rot], we use only w and h here
@@ -833,32 +851,39 @@ if __name__=="__main__":
     ** 3rd loop
     -------------------------------------------------------
     '''
-    err_criterion = 2000
+    err_criterion_ball = 2000
     error_min = 50000
     count_3rd_loop = 0
+    traj_sorted_init, idx_sorted = SortedTrajInLocal(ball_traj_init, local_region)
+    print("traj_sorted_init {}".format(traj_sorted_init))
     # 4) Solve the optimization problem to obtain the required state of the main block
-    while bool_success == False and error_min > err_criterion and count_3rd_loop < 10:
+    while bool_success == False and error_min > err_criterion_ball and count_3rd_loop < 10:
         count_3rd_loop += 1
         # 4)-0. Adpat the local region size after observations (reduce the size)
         # update guide path local
         if count_3rd_loop != 1:
-            del guide_path_local[-1]
-            print(guide_path_local)
-            u_optimal = FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s_ball_ini, env_local)
-            display.updatelocalregion(guide_path_local)            
-            adaptive_length = 25
+            #del guide_path_local[-1]
+            #print(guide_path_local)
+            #u_optimal = FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s_ball_ini, env_local)
+            #display.updatelocalregion(guide_path_local)                        
+            adaptive_length += 10
         else:
+            # first iteration
             adaptive_length = 25            
         # 4)-1. get the main block's optimal state with fixed x1 (we will update this later)
         w_block = block_state[2]
         h_block = block_state[3]
         if abs(s_ball_ini[2]) < 0.5:
-            state_ball = BallinAirValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],0,adaptive_length)
+            # vx = 0, fall downward
+            state_ball = MakeF1withTraj(traj_sorted_init, adaptive_length)
+            # state_ball = BallinAirValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],0,adaptive_length)
         else:
-            state_ball = BallinAirValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],adaptive_length)
-        # Update s_ball_ini 
+            state_ball = MakeF1withTraj(traj_sorted_init, adaptive_length)
+            # state_ball = BallinAirValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],adaptive_length)
+        
+        # Update s_ball_ini for main block
         s_ball_ini = [state_ball[0], state_ball[1], state_ball[2], state_ball[3], s_ball_ini[4]]
-
+        print(state_ball)
         u_optimal = FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s_ball_ini, env_local)
         #u_optimal = FindOptimalInputConstrained(guide_path_local, direction_end, block_type, block_state, s_ball_ini, env_type_pre, env_state_pre, env_type_post, env_state_post, env_local, local_region)
         
@@ -913,6 +938,7 @@ if __name__=="__main__":
         else:
             pt_right = pts_move[0]
             dist_min = 500
+            pt_min = []
             for grd in ground_below:
                 dist_below, pt_below = GetDistancePt2Block(pt_right, grd, 'ground')
                 if dist_below < dist_min:
@@ -1001,7 +1027,7 @@ if __name__=="__main__":
             # ref : [x,y,dir] / state_ball : [x,y,vx,vy]
             ref = [guide_path_local[-1][0],guide_path_local[-1][1], direction_end]
             traj_sorted, idx_sorted = SortedTrajInLocal(ball_traj, local_region)
-            
+            # get the minimum of the error between guide path and each element of the entire trajectory
             for i in range(len(traj_sorted)):
                 state_ball_current = [traj_sorted[i][3], traj_sorted[i][4], traj_sorted[i][0], traj_sorted[i][1]]
                 error, error_vector = GetError(ref, state_ball_current)  
@@ -1013,141 +1039,143 @@ if __name__=="__main__":
             display.drawtraj(traj_sorted)
             plt.show(block=False)
             plt.pause(3)
+            print("error : {}".format(error_min))
             print("iteration 1st loop, 2nd loop, 3rd loop: {0}, {1}, {2}".format(count_1st_loop, count_2nd_loop, count_3rd_loop))
-
-        err_main_criterion = 2000
-        err_main = 50000
-        flag_supportings = True
-        count_4th_loop = 0
-        while bool_success == False and error_min > err_criterion and err_main > err_main_criterion and flag_supportings and count_4th_loop <4 and  block_type[0:4] == "wood":
-            count_4th_loop += 1
-            if count_4th_loop == 1:
-                pass
-            else:
-                # 6)-0. From required force or error_main_array, we can assign the supporting blocks    
-                if not idx_order_from_closest_to_farthest:
-                    # we have to change the optimization solution
-                    flag_supportings = False
+        else:
+            # if type is wood
+            err_main_criterion = 2000
+            err_main = 50000
+            flag_supportings = True
+            count_4th_loop = 0
+            while bool_success == False and error_min > err_criterion_ball and err_main > err_main_criterion and flag_supportings and count_4th_loop <4 and  block_type[0:4] == "wood":
+                count_4th_loop += 1
+                if count_4th_loop == 1:
+                    pass
                 else:
-                    # rough guess of configuration of supporting blocks
-                    support_idx = idx_order_from_closest_to_farthest[0]
-                    support_id = movable_ID[support_idx]
-                    support_type = ID_dict[support_id] # 'metalrectangle'
-                    support_state = ID_state_matching[support_id] # [x,y,w,h,rot]
-                    w_support = support_state[2]
-                    h_support = support_state[3]
-                    if u_move[0] >= u_actual[0]: # move right, left point is left
-                        x_support = x_support + error_main_array[3]
-                        y_support = y_support + error_main_array[4]
+                    # 6)-0. From required force or error_main_array, we can assign the supporting blocks    
+                    if not idx_order_from_closest_to_farthest:
+                        # we have to change the optimization solution
+                        flag_supportings = False
                     else:
-                        x_support = pt_min[0] + error_main_array[3]
-                        y_support = pt_min[1] + error_main_array[4]
-                    theta_support = grd_choice[4] # same with the angle of underlying ground
+                        # rough guess of configuration of supporting blocks
+                        support_idx = idx_order_from_closest_to_farthest[0]
+                        support_id = movable_ID[support_idx]
+                        support_type = ID_dict[support_id] # 'metalrectangle'
+                        support_state = ID_state_matching[support_id] # [x,y,w,h,rot]
+                        w_support = support_state[2]
+                        h_support = support_state[3]
+                        if u_move[0] >= u_actual[0]: # move right, left point is left
+                            x_support = x_support + error_main_array[3]
+                            y_support = y_support + error_main_array[4]
+                        else:
+                            x_support = pt_min[0] + error_main_array[3]
+                            y_support = pt_min[1] + error_main_array[4]
+                        theta_support = grd_choice[4] # same with the angle of underlying ground
 
-            # 6) Simulate the main block and observe the traj. with roughly estimated supporting blocks
-            # state_input = ([[id1, x1, y1, theta1],[id2, x2, y2, theta2],...]) list
-            # previous input is removed but, we have to leave the previous local region's input
-            del state_input[-1]
-            # input the main block
-            state_input.append([input_id, u_move[0], u_move[1], u_move[2]])
-            # input the supporting block
-            if support_id == None:
-                pass
-            else: 
-                state_input.append([support_id, x_support, y_support, theta_support])
+                # 6) Simulate the main block and observe the traj. with roughly estimated supporting blocks
+                # state_input = ([[id1, x1, y1, theta1],[id2, x2, y2, theta2],...]) list
+                # previous input is removed but, we have to leave the previous local region's input
+                del state_input[-1]
+                # input the main block
+                state_input.append([input_id, u_move[0], u_move[1], u_move[2]])
+                # input the supporting block
+                if support_id == None:
+                    pass
+                else: 
+                    state_input.append([support_id, x_support, y_support, theta_support])
 
-            # draw the figure with blocks
-            if block_type == "metalrectangle" or block_type == "metalrtriangle":
-                metalblock = metalBlock(u_move[0],u_move[1],w_block,h_block,u_move[2])
-                display.drawobject(metalblock)
-            elif block_type == "woodrectangle" or block_type == "woodrtriangle":
-                woodblock = woodBlock(u_move[0],u_move[1],w_block,h_block,u_move[2])        
+                # draw the figure with blocks
+                if block_type == "metalrectangle" or block_type == "metalrtriangle":
+                    metalblock = metalBlock(u_move[0],u_move[1],w_block,h_block,u_move[2])
+                    display.drawobject(metalblock)
+                elif block_type == "woodrectangle" or block_type == "woodrtriangle":
+                    woodblock = woodBlock(u_move[0],u_move[1],w_block,h_block,u_move[2])        
+                    display.drawobject(woodblock)
+                if support_type == "metalrectangle" or support_type == "metalrtriangle":
+                    metalblock = metalBlock(x_support,y_support,w_support,h_support,theta_support)
+                    display.drawobject(metalblock)
+                elif support_type == "woodrectangle" or support_type == "woodrtriangle":
+                    woodblock = woodBlock(x_support,y_support,w_support,h_support,theta_support)
+                    display.drawobject(woodblock)
+                elif support_type == None:
+                    pass
+
+                plt.show(block=False)
+                plt.pause(5)
+
+                run_simulation(level_select, movable_ID, ID_dict, state_input)
+
+                # Observe again about the main, ball, support blocks trajectory and check when the contact between blocks is active (contact_idx)
+                traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", level_select)   
+                # traj : [vx,vy,w,x,y,rot]
+                # check the order of the ID in the ID_list 
+                mainblock_traj = traj_list[pick_main_idx+1] # in log file, we include ball, so we need to add 1
+                ball_traj = traj_list[ball_idx]    
+                if support_idx == None:
+                    support_block_traj = []
+                else:
+                    support_block_traj = traj_list[support_idx+1]
+                contact_idx_blocks = 0
+                contact_idx_ball2main = 0
+                flag_collision_blocks = False
+                flag_collision_ball = False
+                for collision_element in collision:
+                    # [time, collision type, objA, objB]
+                    if (collision_element[2] == input_id and collision_element[3] != id_ball and flag_collision_blocks == False) or (collision_element[3] == input_id and collision_element[2] != id_ball and flag_collision_blocks == False):
+                        if collision_element[1] == "collisionStart":
+                            contact_idx_blocks = 0
+                            flag_collision_blocks = True
+                            while abs(collision_element[0] - trace_time[contact_idx_blocks]) > 10:
+                                contact_idx_blocks = contact_idx_blocks+1            
+                    elif (collision_element[2] == input_id and collision_element[3] == id_ball and flag_collision_ball == False) or (collision_element[3] == input_id and collision_element[2] == id_ball and flag_collision_ball == False):
+                        if collision_element[1] == "collisionStart":
+                            contact_idx_ball2main = 0
+                            flag_collision_ball = True
+                            while abs(collision_element[0] - trace_time[contact_idx_ball2main]) > 10:
+                                contact_idx_ball2main = contact_idx_ball2main+1
+
+                # 7) Check the error between guide_path_local, direction_end and mainblock_traj at x_local  
+                # ref : [x,y,dir] / state_ball : [x,y,vx,vy]
+                ref = [guide_path_local[-1][0],guide_path_local[-1][1], direction_end]
+                traj_sorted, idx_sorted = SortedTrajInLocal(ball_traj, local_region)
+                
+                for i in range(len(traj_sorted)):
+                    state_ball_current = [traj_sorted[i][3], traj_sorted[i][4], traj_sorted[i][0], traj_sorted[i][1]]
+                    error, error_vector = GetError(ref, state_ball_current)  
+                    if error <= error_min:
+                        error_min = error
+                        index_min = i
+
+                # deviation between the actual traj. of main block and desired traj. of main block
+                # desired_traj_main [vx,vy,w,x,y,rot]
+                desired_traj_main = np.array([vel_desired[0], vel_desired[1], vel_desired[2], u_actual[0], u_actual[1], u_actual[2]])
+                error_main_array = desired_traj_main - mainblock_traj[contact_idx_ball2main]
+                err_main = np.sum(np.square(error_main_array))
+
+                print(mainblock_traj)
+                print("error of ball and main are {0} and {1}".format(error_min, err_main))
+                print("ball state at min error is {}".format(traj_sorted[index_min]))
+                print("main block state in collision is {}".format(mainblock_traj[contact_idx_ball2main]))
+                #display.drawtraj([traj_sorted[index_min]])
+                display.drawtraj(traj_sorted)
+                woodblock = woodBlock(mainblock_traj[contact_idx_ball2main][3],mainblock_traj[contact_idx_ball2main][4],w_block,h_block,mainblock_traj[contact_idx_ball2main][5])
                 display.drawobject(woodblock)
-            if support_type == "metalrectangle" or support_type == "metalrtriangle":
-                metalblock = metalBlock(x_support,y_support,w_support,h_support,theta_support)
-                display.drawobject(metalblock)
-            elif support_type == "woodrectangle" or support_type == "woodrtriangle":
-                woodblock = woodBlock(x_support,y_support,w_support,h_support,theta_support)
-                display.drawobject(woodblock)
-            elif support_type == None:
-                pass
 
-            plt.show(block=False)
-            plt.pause(5)
+                plt.show(block=False)
+                plt.pause(3)
 
-            run_simulation(level_select, movable_ID, ID_dict, state_input)
-
-            # Observe again about the main, ball, support blocks trajectory and check when the contact between blocks is active (contact_idx)
-            traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", level_select)   
-            # traj : [vx,vy,w,x,y,rot]
-            # check the order of the ID in the ID_list 
-            mainblock_traj = traj_list[pick_main_idx+1] # in log file, we include ball, so we need to add 1
-            ball_traj = traj_list[ball_idx]    
-            if support_idx == None:
-                support_block_traj = []
-            else:
-                support_block_traj = traj_list[support_idx+1]
-            contact_idx_blocks = 0
-            contact_idx_ball2main = 0
-            flag_collision_blocks = False
-            flag_collision_ball = False
-            for collision_element in collision:
-                # [time, collision type, objA, objB]
-                if (collision_element[2] == input_id and collision_element[3] != id_ball and flag_collision_blocks == False) or (collision_element[3] == input_id and collision_element[2] != id_ball and flag_collision_blocks == False):
-                    if collision_element[1] == "collisionStart":
-                        contact_idx_blocks = 0
-                        flag_collision_blocks = True
-                        while abs(collision_element[0] - trace_time[contact_idx_blocks]) > 10:
-                            contact_idx_blocks = contact_idx_blocks+1            
-                elif (collision_element[2] == input_id and collision_element[3] == id_ball and flag_collision_ball == False) or (collision_element[3] == input_id and collision_element[2] == id_ball and flag_collision_ball == False):
-                    if collision_element[1] == "collisionStart":
-                        contact_idx_ball2main = 0
-                        flag_collision_ball = True
-                        while abs(collision_element[0] - trace_time[contact_idx_ball2main]) > 10:
-                            contact_idx_ball2main = contact_idx_ball2main+1
-
-            # 7) Check the error between guide_path_local, direction_end and mainblock_traj at x_local  
-            # ref : [x,y,dir] / state_ball : [x,y,vx,vy]
-            ref = [guide_path_local[-1][0],guide_path_local[-1][1], direction_end]
-            traj_sorted, idx_sorted = SortedTrajInLocal(ball_traj, local_region)
-            
-            for i in range(len(traj_sorted)):
-                state_ball_current = [traj_sorted[i][3], traj_sorted[i][4], traj_sorted[i][0], traj_sorted[i][1]]
-                error, error_vector = GetError(ref, state_ball_current)  
-                if error <= error_min:
-                    error_min = error
-                    index_min = i
-
-            # deviation between the actual traj. of main block and desired traj. of main block
-            # desired_traj_main [vx,vy,w,x,y,rot]
-            desired_traj_main = np.array([vel_desired[0], vel_desired[1], vel_desired[2], u_actual[0], u_actual[1], u_actual[2]])
-            error_main_array = desired_traj_main - mainblock_traj[contact_idx_ball2main]
-            err_main = np.sum(np.square(error_main_array))
-
-            print(mainblock_traj)
-            print("error of ball and main are {0} and {1}".format(error_min, err_main))
-            print("ball state at min error is {}".format(traj_sorted[index_min]))
-            print("main block state in collision is {}".format(mainblock_traj[contact_idx_ball2main]))
-            #display.drawtraj([traj_sorted[index_min]])
-            display.drawtraj(traj_sorted)
-            woodblock = woodBlock(mainblock_traj[contact_idx_ball2main][3],mainblock_traj[contact_idx_ball2main][4],w_block,h_block,mainblock_traj[contact_idx_ball2main][5])
-            display.drawobject(woodblock)
-
-            plt.show(block=False)
-            plt.pause(3)
-
-            # 8) Compute the required force and point (if wood)
-            if block_type[0:5] == "metal":
-                pass
-            else:
-                print("contact_idx_blocks {}".format(contact_idx_blocks))
-                p2 = ComputeSupportForces(block_type, mainblock_desired_state, mainblock_traj, contact_idx_blocks)
-                #desired_state(x,y,w,h,rot,vx,vy,w_rot)
-            print(p2)
-            display.drawpoint(p2)
-            plt.show(block=False)
-            plt.pause(3)
-            print("iteration 1st loop, 2nd loop, 3rd loop, 4th loop : {0}, {1}, {2}, {3}".format(count_1st_loop, count_2nd_loop, count_3rd_loop, count_4th_loop))
+                # 8) Compute the required force and point (if wood)
+                if block_type[0:5] == "metal":
+                    pass
+                else:
+                    print("contact_idx_blocks {}".format(contact_idx_blocks))
+                    p2 = ComputeSupportForces(block_type, mainblock_desired_state, mainblock_traj, contact_idx_blocks)
+                    #desired_state(x,y,w,h,rot,vx,vy,w_rot)
+                print(p2)
+                display.drawpoint(p2)
+                plt.show(block=False)
+                plt.pause(3)
+                print("iteration 1st loop, 2nd loop, 3rd loop, 4th loop : {0}, {1}, {2}, {3}".format(count_1st_loop, count_2nd_loop, count_3rd_loop, count_4th_loop))
 
 
 
