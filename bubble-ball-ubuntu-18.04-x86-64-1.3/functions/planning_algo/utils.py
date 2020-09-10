@@ -110,6 +110,22 @@ def GetFootPerpendicular(pt, line):
     pt_foot = [x,y]
     return dist, pt_foot
 
+def GetFootVertical2block(pt, block_state, block_type):
+    # block state : [x,y,w,h,rot]
+    pts = RotatePts(block_state, block_type)
+    # check pts[1] and pts[2]
+    # max_x = max([pts[0][0], pts[1][0], pts[2][0], pts[3][0]])
+    # min_x = min([pts[0][0], pts[1][0], pts[2][0], pts[3][0]])
+    # max_y = max([pts[0][1], pts[1][1], pts[2][1], pts[3][1]])
+    # min_x = min([pts[0][1], pts[1][1], pts[2][1], pts[3][1]])
+    if pt[0] < pts[1][0] and pt[0] >= pts[2][0]:
+        intersect = True
+        y_foot = ((pt[0]-pts[2][0])*pts[1][1]+(pts[1][0]-pt[0])*pts[1][1])/(pts[1][0]-pts[2][0])
+    else:
+        intersect = False
+        y_foot = 0
+    return [pt[0], y_foot], intersect
+
 def RotatePts(state, block_type):
     # [x,y,w,h,rot]
     x = state[0]

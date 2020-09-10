@@ -263,7 +263,7 @@ def run_simulation(level, movable_ID, ID_dict, state_input = [], logfileName = "
     #subprocess.run("./bubble-ball")
     #subprocess.run(["ls", "-l"])
     a = subprocess.Popen("./bubble-ball", cwd = abspath)
-    time.sleep(10.5)
+    time.sleep(11)
     a.terminate()
     #gg = input("Check for python works after the bubble-ball execution")
 
