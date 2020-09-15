@@ -237,6 +237,8 @@ def run_simulation(level, movable_ID, ID_dict, state_input = [], logfileName = "
 
     # Clear everything on input_object["objectSetup"] list
     input_object["objectSetup"].clear()
+    
+    
 
     if state_input == []:       
         # 2)-1. Automatically input what you want on the terminal       
@@ -249,8 +251,11 @@ def run_simulation(level, movable_ID, ID_dict, state_input = [], logfileName = "
         for obj_input in state_input:
             # 2)-2. Manually input on the script
             input_object["objectSetup"].append({ "unique": "{0}".format(obj_input[0]), "x": int(obj_input[1]), "y": int(obj_input[2]), "r": int(obj_input[3])})
+            #print("input object Setup{}".format(input_object["objectSetup"]))
             # input_object["objectSetup"].append({ "unique": "AO6G", "x": 210, "y": 50, "r": 0 })
 
+    #print("input object {}".format(input_object))
+    
     # Update the automate.json file with what we wanna enter as an initial configuration
     with open('{}/automate.json'.format(abspath), 'w', encoding = 'utf-8-sig') as automate_file:
         json.dump(input_object, automate_file, indent = 2)
@@ -258,6 +263,7 @@ def run_simulation(level, movable_ID, ID_dict, state_input = [], logfileName = "
         input_object = json.load(automate_file) 
     obj_init = input_object["objectSetup"][0]
     print("The changed obj_init is {}".format(obj_init))
+    #print("change input object {}".format(input_object["objectSetup"]))
 
     # Exectue finally
     #subprocess.run("./bubble-ball")

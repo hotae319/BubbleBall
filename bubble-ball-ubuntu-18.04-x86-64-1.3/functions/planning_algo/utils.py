@@ -34,6 +34,9 @@ def LineFromState(state, block_type):
         line = LineFrom2pts(p1,p2)
     return line
 
+def GetDistancePt2Line(pt, p1, p2):
+    return 1
+
 def GetDistancePt2Block(pt, state, obj_type):
     if obj_type == "ground" or obj_type == "woodrectangle" or obj_type == "metalrectangle":
         inside = 0
