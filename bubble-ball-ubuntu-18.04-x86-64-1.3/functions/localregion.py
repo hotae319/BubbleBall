@@ -19,13 +19,13 @@ from math import cos, sin, pi, sqrt, atan
 import time
 import os, sys
 if __name__ == "__main__":
-    from planning_algo.utils import RotatePts, LineInequality, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
+    from planning_algo.utils import RotatePts, LineFrom2pts, LineInequality, GetLinesFromBlock, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
     from parsing_movableobjects_levels import parsing_objects, run_simulation, logging_trajectory
     from physics.obj_class import Ball, metalBlock, woodBlock, powerUps
     from physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue
     from physics.common.const import g, dt
 else:
-    from . planning_algo.utils import RotatePts, LineInequality, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
+    from . planning_algo.utils import RotatePts, LineFrom2pts, LineInequality, GetLinesFromBlock, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
     from . parsing_movableobjects_levels import parsing_objects, run_simulation, logging_trajectory
     from . physics.obj_class import Ball, metalBlock, woodBlock, powerUps
     from . physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue
@@ -58,14 +58,16 @@ def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list
         sum_dist += dist
         dist_list.append(sum_dist)      
 
+    #print("dist_list_pred {}".format(dist_list_pred))
     # pick the pts of predicted traj to compute the tracking error
     # The entire predicted traj. is split into several parts which are proportional to interval of Tg
-    for i in range(num_guide_path-1):
+    for i in range(num_guide_path-1):        
         l = dist_list[i]/sum_dist*sum_dist_pred
         id_pick = 1
-        while dist_list_pred[id_pick-1]<= l and dist_list_pred[id_pick] > l:
+        while not (dist_list_pred[id_pick-1]<= l and dist_list_pred[id_pick] > l) and id_pick < len(dist_list_pred)-1:
             id_pick += 1
         #id_pick = int(num_pred_traj*dist_list[i]/sum_dist)-1 # consider only the number of elements, not intervals
+        #print("l, dist_list_pred id_pick, len{} {} {} {}".format(l, dist_list_pred[id_pick], id_pick, len(dist_list_pred)))
         x_predicted_traj_new.append(x_predicted_traj[id_pick])
         y_predicted_traj_new.append(y_predicted_traj[id_pick])
         error_list.append(sqrt((guide_path[i][0]-x_predicted_traj_new[i])**2+(guide_path[i][1]-y_predicted_traj_new[i])**2))
@@ -74,8 +76,8 @@ def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list
     idx_local_end = 0
     print("error list {}".format(error_list))
     print("guide {}".format(guide_path))
-    print(x_predicted_traj_new)
-    while error_list[idx_local_start] < error_threshold/4:
+    print(x_predicted_traj_new, y_predicted_traj_new)
+    while error_list[idx_local_start] < error_threshold/8:
         idx_local_start += 1
     while error_list[idx_local_end] < error_threshold and idx_local_end < len(error_list)-1:
         idx_local_end += 1
@@ -87,27 +89,32 @@ def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list
     idx_pick_end = y_predicted_traj.index(y_predicted_traj_new[idx_local_end])
 
     guide_path_local = guide_path[idx_local_start:idx_local_end+1] 
+    print("guide_path_local {}".format(guide_path_local))
     # direction of the end element of local guide path, angle of atan(y/x)
     if guide_path[idx_local_end+1][0]-guide_path[idx_local_end][0] == 0:
         direction_end = pi/2*np.sign(guide_path[idx_local_end+1][1]-guide_path[idx_local_end][1])
     else:
         direction_end = atan((guide_path[idx_local_end+1][1]-guide_path[idx_local_end][1])/(guide_path[idx_local_end+1][0]-guide_path[idx_local_end][0]))
     # It can be changed to the total prediction traj
-    x_pred_max = max(x_predicted_traj_new)
-    y_pred_max = max(y_predicted_traj_new)
-    x_guide_max = guide_path_local[idx_local_end-idx_local_start][0]
-    y_guide_max = guide_path_local[idx_local_end-idx_local_start][1]
-    x_local_max = x_guide_max
+    x_pred_max = max(x_predicted_traj[idx_pick_start], x_predicted_traj[idx_pick_end])
+    y_pred_max = max(y_predicted_traj[idx_pick_start], y_predicted_traj[idx_pick_end])
+    x_guide_max = max(guide_path_local[idx_local_end-idx_local_start][0], guide_path_local[0][0])
+    y_guide_max = max(guide_path_local[idx_local_end-idx_local_start][1], guide_path_local[0][1])
+    x_local_max = max(x_guide_max, x_pred_max)
     y_local_max = max(y_pred_max, y_guide_max)
     #x_local = max(x_pred_max,x_guide_max)
-    x_local_min = min(guide_path_local[0][0],x_predicted_traj[idx_pick_start])
-    y_local_min = min(guide_path_local[0][1],y_predicted_traj[idx_pick_start])
+    x_local_min = min(guide_path_local[0][0],guide_path_local[-1][0], x_predicted_traj[idx_pick_start], x_predicted_traj[idx_pick_end])
+    y_local_min = min(guide_path_local[0][1],guide_path_local[-1][1], y_predicted_traj[idx_pick_start], y_predicted_traj[idx_pick_end])
     # Adjust the local region's y value
+    
     s_grd_local = SortoutEnv(x_local_max, y_local_max, x_local_min, y_local_min, s_grd_list) 
-    while not s_grd_local or (CheckCondition(s_grd_local, y_pred_max, y_guide_max) and y_local_max <= 500):
+    
+    print(x_predicted_traj_new)
+    while y_local_max <= 500 and not s_grd_local :
+    #while not s_grd_local or (CheckCondition(s_grd_local, y_pred_max, y_guide_max) and y_local_max <= 500):
         y_local_max += 100
+        print(y_local_max)
         s_grd_local = SortoutEnv(x_local_max, y_local_max, x_local_min, y_local_min, s_grd_list)
-
     return guide_path_local, direction_end, x_local_max, y_local_max, idx_pick_start, idx_pick_end
 def SortedTrajInLocal(ball_traj, local_region):
     # local_region [x_local_max, y_local_max, xregion, yregion]
@@ -129,7 +136,7 @@ def CheckCondition(s_grd_list, y_pred_max, y_guide_max):
             bool_condition = False
     return bool_condition
 
-def SortoutEnv(x_local_max, y_local_max, x_local_min, y_local_min, s_grd_list):
+def grd_below = SortoutEnv(x_local_max, y_local_max, x_local_min, y_local_min, ground_listx_local_max, y_local_max, x_local_min, y_local_min, s_grd_list):
     # ground type is only rectangle, so we don't need ID or type here
     num_grd = len(s_grd_list)
     env_local = []    
@@ -333,7 +340,10 @@ def ConvertUopt2Ureal(u_input, block_type, w_block, h_block, s_ball_ini):
         width = w_block
         height = h_block
         theta = u_input[1]/180*pi
-        u_actual = [xball+rball-rball*sin(theta)+l*cos(theta)-width/2-width/2*cos(theta)-height/2*sin(theta), yball+rball+rball*cos(theta)+l*sin(theta)-height/2-width/2*sin(theta)+height/2*cos(theta), u_input[1]]
+        if l >=0:
+            u_actual = [xball+rball-rball*sin(theta)+l*cos(theta)-width/2-width/2*cos(theta)-height/2*sin(theta), yball+rball+rball*cos(theta)+l*sin(theta)-height/2-width/2*sin(theta)+height/2*cos(theta), u_input[1]]
+        else:
+            u_actual = [xball+rball-rball*sin(theta)+l*cos(theta)-width/2+width/2*cos(theta)-height/2*sin(theta), yball+rball+rball*cos(theta)+l*sin(theta)-height/2+width/2*sin(theta)+height/2*cos(theta), u_input[1]]
         vel_desired = [u_input[2],u_input[3],u_input[4]]
     elif block_type == "woodcircle" or block_type ==  "metalcircle":
         # u_input = [x, y, vx, vy, w]
@@ -350,6 +360,8 @@ def MakeF1withTraj(traj_sorted, x1):
     # traj_sorted : [[vx,vy,w,x,y,rot],...] / x1 can be either positive or negative
     x_init = traj_sorted[0][3]
     y_init = traj_sorted[0][4]
+    x_end = traj_sorted[-1][3]
+    y_end = traj_sorted[-1][4]
     vx_init = traj_sorted[0][0]
     max_i = len(traj_sorted)
     if abs(vx_init) < 0.5:
@@ -359,8 +371,12 @@ def MakeF1withTraj(traj_sorted, x1):
             i += 1
     else:
         i = 0
-        while (traj_sorted[i][3] < x_init + x1 and traj_sorted[i+1][3] < x_init + x1 and i< max_i-2) or (traj_sorted[i][3] > x_init + x1 and traj_sorted[i+1][3] > x_init + x1 and i < max_i-2):
-            i += 1
+        if x_init < x_end: # left to right            
+            while (traj_sorted[i][3] < x_init + x1 and traj_sorted[i+1][3] < x_init + x1 and i< max_i-2) or (traj_sorted[i][3] > x_init + x1 and traj_sorted[i+1][3] > x_init + x1 and i < max_i-2):
+                i += 1
+        else:
+            while (traj_sorted[i][3] < x_init - x1 and traj_sorted[i+1][3] < x_init - x1 and i< max_i-2) or (traj_sorted[i][3] > x_init - x1 and traj_sorted[i+1][3] > x_init - x1 and i < max_i-2):
+                i += 1        
         if i == max_i-2:
             # traj. consists of only y movement.
             i = 0
@@ -478,17 +494,28 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
         u_input_list = []
         u_fobj_tuple_list = []
         # grid of l, theta
-        l_grid = range(int(w_main/2), w_main, l_resolution) # 5~6
+        #l_grid = range(int(w_main/2), w_main, l_resolution) # 5~6
+        l_grid = range(-w_main, w_main, l_resolution)
         theta_grid = range(-80, 80, theta_resolution) # 32        
         for l_cand in l_grid:
             for theta_cand in theta_grid:
                 u_input = [l_cand,theta_cand,0,0,0] 
-                # Check feasibility
-                u_actual, vel_desired = ConvertUopt2Ureal(u_input, block_type, w_main, h_main, s_ball_ini)
-                main_state = [u_actual[0], u_actual[1], w_main, h_main, u_actual[2]]
-                need_adjust = AdjustmentConstraint(main_state, env_local)
-                # If feasible, compute objective function
-                if need_adjust == False:
+                if block_type == "woodrectangle":
+                    # Check feasibility
+                    u_actual, vel_desired = ConvertUopt2Ureal(u_input, block_type, w_main, h_main, s_ball_ini)
+                    main_state = [u_actual[0], u_actual[1], w_main, h_main, u_actual[2]]
+                    need_adjust = AdjustmentConstraint(main_state, env_local)
+                    # If feasible, compute objective function
+                    if need_adjust == False:
+                        f_obj_value_current = fobj(u_input,*y)   
+                        uf_tuple = (u_input, f_obj_value_current)
+                        u_fobj_tuple_list.append(uf_tuple)                 
+                        # f_obj_list.append(f_obj_value_current)
+                        # u_input_list.append(u_input)
+                        if f_obj_value_current <= f_obj_value_min:
+                            f_obj_value_min = f_obj_value_current
+                            u_input_min = u_input
+                else:
                     f_obj_value_current = fobj(u_input,*y)   
                     uf_tuple = (u_input, f_obj_value_current)
                     u_fobj_tuple_list.append(uf_tuple)                 
@@ -497,6 +524,7 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
                     if f_obj_value_current <= f_obj_value_min:
                         f_obj_value_min = f_obj_value_current
                         u_input_min = u_input
+
     else:
         f_obj_value_min = 10000000
         u_input_min = 0
@@ -856,15 +884,115 @@ def AdjustmentConstraint(main_state, env_local, support_state = []):
 def GetydistPt2grd(pt, ground_below):
     dist_min = 500
     pt_min = []
+    grd_choice = []
     for grd in ground_below:
         pt_below, flag_intersect = GetFootVertical2block(pt, grd, 'ground')    
         if flag_intersect== True:
             dist_below = abs(pt_below[1] - pt[1])
+            # Choose the closest one (other things are below that block)
             if dist_below < dist_min:
                 dist_min = dist_below
                 pt_min = pt_below
                 grd_choice = grd
-    return dist_min, pt_min
+    return dist_min, pt_min, grd_choice
+
+
+def Projection(p1, p2, ground_list):
+    # return : the projected line of p1p2 onto the ground
+    xmax = max(p1[0], p2[0])    
+    xmin = min(p1[0], p2[0])
+    ymin = min(p1[1], p2[1])
+    ymax = 500
+    projected_line1 = []
+    projected_line2 = []
+    grds_below = SortoutEnv(xmax, ymax, xmin, ymin, ground_list)
+    if p1[0] > p2[0]: #p1 right
+        pt_right = p1
+        pt_left = p2
+    else:
+        pt_right = p2
+        pt_left = p1
+
+    if not grds_below:
+        projected_line = []
+    else:
+        _, pt_below_r, grd_choice_r = GetydistPt2grd(pt_right, grds_below)
+        _, pt_below_l, grd_choice_l = GetydistPt2grd(pt_left, grds_below)
+
+        vertices_r = RotatePts(grd_choice_r, 'ground')
+        vertices_l = RotatePts(grd_choice_l, 'ground')
+
+        line_test_value_r = 100000
+        line_test_value_l = 100000
+        # To get the other points between right pt and left pt
+        for i in range(4):
+            line_r = LineFrom2pts(vertices_r[i-1],vertices_r[i])
+            a = line_r[0]
+            b = line_r[1]
+            c = line_r[2]
+            if abs(a*pt_below_r[0]+b*pt_below_r[1]+c)<line_test_value_r:
+                if b == 0: # x = c
+                    pass
+                elif a == 0: # y = c
+                    line_test_value_r = abs(a*pt_below_r[0]+b*pt_below_r[1]+c)
+                    left_pts_r = [vertices_r[(i+1)%4]]
+                if -a/b >0: # positive angle                          
+                    line_test_value_r = abs(a*pt_below_r[0]+b*pt_below_r[1]+c)
+                    left_pts_r = [vertices_r[(i+1)%4], vertices_r[i]]
+                else: # negative angle                                  
+                    line_test_value_r = abs(a*pt_below_r[0]+b*pt_below_r[1]+c)
+                    left_pts_r = [vertices_r[(i+1)%4]]      
+        for i in range(4):
+            line_l = LineFrom2pts(vertices_l[i-1],vertices_l[i])
+            a = line_l[0]
+            b = line_l[1]
+            c = line_l[2]
+            if abs(a*pt_below_l[0]+b*pt_below_l[1]+c)<line_test_value_l:
+                if b == 0: # x = c
+                    pass
+                elif a == 0: # y = c
+                    line_test_value_l = abs(a*pt_below_l[0]+b*pt_below_l[1]+c)
+                    right_pts_l = [vertices_l[i-1]]
+                if -a/b>0:
+                    right_pts_l = [vertices_l[i-1]]                    
+                    line_test_value2 = abs(a*pt_below_l[0]+b*pt_below_l[1]+c)
+                else:
+                    right_pts_l = [vertices_l[i-1], vertices_l[(i-2)%4]]                    
+                    line_test_value2 = abs(a*pt_below_l[0]+b*pt_below_l[1]+c)
+
+        # Decide the order of pts
+        pts_list_from_left = [pt_left]
+        pts_list_from_right = [pt_right]
+        # Check y value from the above
+        sequence = right_pts_l + left_pts_r        
+        sequence_array = np.array(sequence)
+        # sort by the order of y (above is first)
+        sequence_yorder_array = sequence_array[np.argsort(sequence_array[:,1])]
+        sequence_yorder = sequence_yorder_array.tolist()
+        for pt in sequence_yorder:
+            if pt[0] < pts_list_from_right[0][0] and pt[0] > pts_list_from_left[-1][0]: # if inside                
+                if pt in right_pts_l: # check where it comes from
+                    pts_list_from_left.append(pt) #[~,~,pt]
+                else:
+                    pts_list_from_right.insert(0, pt) #[pt, ~, ~]
+            else: # outside
+                pass
+        if pts_list_from_left[-1][1]>pts_list_from_right[0][1]:
+            # right part is above
+            pt_left_foot, intersect = GetFootVertical2block(pts_list_from_right[0], grd_choice_l, 'ground')
+            if intersect == True:
+                pts_list_from_left.append(pt_left_foot)
+            else:
+                pass
+        else:
+            pt_right_foot, intersect = GetFootVertical2block(pts_list_from_left[-1], grd_choice_r, 'ground')
+            if intersect == True:
+                pts_list_from_right.insert(0, pt_right_foot)
+            else:
+                pass          
+
+    return pts_list_from_left, pts_list_from_right
+ 
 
 
 if __name__=="__main__":
@@ -925,11 +1053,12 @@ if __name__=="__main__":
 
 
     # Test for a local region
-    level_select = 4
+    level_select = 3
     # 0) Prerequisite : guide path
     #guide_path = [[20,135],[50,155],[110,150],[180,170],[230,185],[280,175],[310,185],[340,195],[400,200]]
-    guide_path = [[419, 285], [439, 254], [440, 240], [424, 217], [383, 195], [338, 154], [331, 153], [290, 169], [266, 133], [230, 153], [220, 141], [178, 144], [142, 136], [120, 126], [99, 120], [75, 100]]
-    guide_path.reverse()
+    guide_path = [[450, 120], [443, 158], [411, 167], [379, 192], [350, 205], [315, 177], [276, 202], [241, 195], [204, 186], [166, 178], [135, 196], [104, 209], [78, 207], [61, 202], [34, 195]]
+    #guide_path = [[419, 285], [439, 254], [440, 240], [424, 217], [383, 195], [338, 154], [331, 153], [290, 169], [266, 133], [230, 153], [220, 141], [178, 144], [142, 136], [120, 126], [99, 120], [75, 100]]
+    #guide_path.reverse()
     #guide_path = [[210, 100], [241, 119], [284, 139], [304, 129], [348, 137], [372, 144], [391, 151], [435, 153], [476, 167], [446, 210], [407, 223], [389, 227], [377, 260], [345, 276], [310, 274], [276, 263], [255, 283], [243, 287], [209, 294], [176, 288], [159, 292], [139, 293], [117, 300], [86, 302], [59, 292], [34, 285]]
     #guide_path = [[25, 100], [38, 119], [79, 132], [108, 154], [126, 142], [167, 137], [195, 134], [230, 147], [239, 150], [275, 154], [295, 179], [327, 202], [356, 212], [384, 222], [414, 234], [417, 253], [419, 275]]
     state_input = [] # decided ahead in previous local regions
@@ -952,13 +1081,16 @@ if __name__=="__main__":
     # 2) Choose a local region and cut-off the guide path locally
     x_predicted_traj = [ball_traj_init[j][3] for j in range(len(ball_traj_init))]
     y_predicted_traj = [ball_traj_init[j][4] for j in range(len(ball_traj_init))]
-        
+
     guide_path_local, direction_end, x_local_max, y_local_max, idx_pick_start, idx_pick_end = SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list)
-    xregion = min(guide_path_local[0][0],x_predicted_traj[idx_pick_start])
-    yregion = min(guide_path_local[0][1],y_predicted_traj[idx_pick_start])
+    xregion = min(guide_path_local[0][0],guide_path_local[-1][0], x_predicted_traj[idx_pick_start], x_predicted_traj[idx_pick_end])
+    yregion = min(guide_path_local[0][1],guide_path_local[-1][1], y_predicted_traj[idx_pick_start], y_predicted_traj[idx_pick_end])
+    #xregion = min(x_predicted_traj[idx_pick_start], x_predicted_traj[idx_pick_end])
+    #yregion = min(y_predicted_traj[idx_pick_start], y_predicted_traj[idx_pick_end])
     xsize = x_local_max-xregion
     ysize = y_local_max-yregion
     local_region = [x_local_max, y_local_max, xregion, yregion]
+    print("local_region {}".format(local_region))
     # s_ball_ini = [x,y,vx,vy,r] : so we have to change the order because log file has vx,vy first
     s_ball_ini = [ball_traj_init[idx_pick_start][3],ball_traj_init[idx_pick_start][4],ball_traj_init[idx_pick_start][0],ball_traj_init[idx_pick_start][1],15]
     # sort out the grounds' states from the total s_grd_list
@@ -1066,6 +1198,7 @@ if __name__=="__main__":
             f_obj_min = 10000000
 
             print("time start : {}".format(time.time()))
+            #print(traj_sorted_init)
             for adaptive_length in adaptive_length_grid:
                 if abs(s_ball_ini[2]) < 0.5:
                     # vx = 0, fall downward
@@ -1098,7 +1231,7 @@ if __name__=="__main__":
                 return elem[2]
             umain_length_fobj_tuple_list_extend.sort(key=get_fobj)
             print("time end : {}".format(time.time()))
-            #print(umain_length_fobj_tuple_list_extend)
+            print(umain_length_fobj_tuple_list_extend)
 
             #u_optimal = FindOptimalInput(guide_path_local_update, direction_end, block_type, block_state, s_ball_ini, env_local)
             #u_optimal = FindOptimalInputConstrained(guide_path_local_update, direction_end, block_type, block_state, s_ball_ini, env_type_pre, env_state_pre, env_type_post, env_state_post, env_local, local_region)
@@ -1146,10 +1279,14 @@ if __name__=="__main__":
                 dist_min = 500
                 dist_min_left = 500
                 dist_min_right = 500
+                # for rectangle
                 pt_left = pts_move[3]
                 pt_right = pts_move[0]
                 pt_min = []
-
+                pt_min_right = []
+                pt_min_left = []
+                grd_choice_right = []
+                grd_choice_left = []
                 
                 # if pt_min_moved[0] > block_state_desired[0]+w_block/2: # moving point is right
                 # # if u_move[0] >= u_actual[0]:
@@ -1199,20 +1336,22 @@ if __name__=="__main__":
                 
                 pt_move_left = []
                 pt_move_right = []
+                move_standard_low = 10
+                move_standard_high = 50
                 # search neighborhood to check if we can move a little bit
-                if dist_min_left > 10:
+                if dist_min_left > move_standard_low and dist_min_left < move_standard_high:
                     num_search = 4                    
                     for i in range(num_search):
                         pt_search = [pt_left[0]+(i+1)*dist_min_left/num_search, pt_left[1]]
-                        dist_min_search, pt_min_search = GetydistPt2grd(pt_search, ground_below)                        
+                        dist_min_search, pt_min_search, _ = GetydistPt2grd(pt_search, ground_below) #env_local is correct                   
                         if dist_min_search < dist_min_left:
                             pt_move_left = pt_min_search
                             dist_min_left = dist_min_search
-                if dist_min_right > 10:
+                if dist_min_right > move_standard_low and dist_min_right < move_standard_high:
                     num_search = 4                    
                     for i in range(num_search):
                         pt_search = [pt_right[0]+(i+1)*dist_min_right/num_search, pt_right[1]]
-                        dist_min_search, pt_min_search = GetydistPt2grd(pt_search, ground_below)
+                        dist_min_search, pt_min_search, _ = GetydistPt2grd(pt_search, ground_below)
                         print("dist_min_search, pt_min_search {} {}".format(dist_min_search, pt_min_search ))
                         if dist_min_search < dist_min_right:
                             pt_move_right = pt_min_search
@@ -1225,7 +1364,7 @@ if __name__=="__main__":
                     xmove = pt_move_left[0] - pt_left[0]
                     ymove = pt_move_left[1] - pt_left[1]
                     dist_min_left = 0
-                elif not pt_move_left and len(pt_move_right)>0:
+        , grd_choice        elif not pt_move_left and len(pt_move_right)>0:
                     xmove = pt_move_right[0] - pt_right[0]
                     ymove = pt_move_right[1] - pt_right[1]
                     dist_min_right = 0
@@ -1240,7 +1379,7 @@ if __name__=="__main__":
                         dist_min_right = 0
                 u_move[0] += xmove
                 u_move[1] += ymove 
-
+                print("u_move and xmove, ymove")
                 # pick the side which has the larger dist_min
                 if dist_min_left > dist_min_right:
                     dist_min = dist_min_left

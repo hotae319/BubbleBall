@@ -34,6 +34,27 @@ def LineFromState(state, block_type):
         line = LineFrom2pts(p1,p2)
     return line
 
+def GetLinesFromBlock(state, block_type):
+    x = state[0]
+    y = state[1]
+    w = state[2]
+    h = state[3]
+    theta = state[4]/180*pi
+
+    pts = RotatePts(state, block_type)   
+    lines = []
+    if block_type in ("metalrectangle", "woodrectangle", "ground"):    
+        for i in range(4):
+            line = LineFrom2pts(pt[i-1], pt[i]) # (x,y+h) (x+w,y+h) anti-clockwise
+            lines.append(line)
+    elif block_type == "metalrtriangle" or block_type == "woodrtriangle":
+        for i in range(3):
+            line = LineFrom2pts(pt[i-1], pt[i]) # (x,y+h) (x+w,y+h) anti-clockwise
+            lines.append(line)
+    return lines
+
+
+
 def GetDistancePt2Line(pt, p1, p2):
     return 1
 
@@ -205,6 +226,7 @@ def GetIntersectPt(p1,p2,q1,q2):
     y = y1 + t*(y2-y1)
     pt_intersect = [x,y]
     return pt_intersect
+
 def CheckInside(point_list, ptest):
     '''
     Check if the point is inside or outside of covex polygon
