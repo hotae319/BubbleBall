@@ -19,20 +19,20 @@ from math import cos, sin, pi, sqrt, atan
 import time
 import os, sys
 if __name__ == "__main__":
-    from planning_algo.utils import RotatePts, LineFrom2pts, LineInequality, GetLinesFromBlock, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
+    from planning_algo.utils import GetIntersectPt, RotatePts, LineFrom2pts, LineInequality, GetDistancePt2Line, GetLinesFromBlock, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
     from parsing_movableobjects_levels import parsing_objects, run_simulation, logging_trajectory
     from physics.obj_class import Ball, metalBlock, woodBlock, powerUps
     from physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue
     from physics.common.const import g, dt
 else:
-    from . planning_algo.utils import RotatePts, LineFrom2pts, LineInequality, GetLinesFromBlock, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
+    from . planning_algo.utils import GetIntersectPt, RotatePts, LineFrom2pts, LineInequality, GetDistancePt2Line, GetLinesFromBlock, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
     from . parsing_movableobjects_levels import parsing_objects, run_simulation, logging_trajectory
     from . physics.obj_class import Ball, metalBlock, woodBlock, powerUps
     from . physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue
     from . physics.common.const import g, dt
 
 
-def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list, error_threshold = 250):
+def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list, error_threshold = 200):
     # predicted traj : xtraj = [1,2,...], ytraj = [2,3,...]
     # guide_path(shortest_path): [[1,2][2,3]...]
     num_pred_traj = len(x_predicted_traj)
@@ -77,7 +77,7 @@ def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list
     print("error list {}".format(error_list))
     print("guide {}".format(guide_path))
     print(x_predicted_traj_new, y_predicted_traj_new)
-    while error_list[idx_local_start] < error_threshold/8:
+    while error_list[idx_local_start] < error_threshold/18:
         idx_local_start += 1
     while error_list[idx_local_end] < error_threshold and idx_local_end < len(error_list)-1:
         idx_local_end += 1
@@ -136,15 +136,20 @@ def CheckCondition(s_grd_list, y_pred_max, y_guide_max):
             bool_condition = False
     return bool_condition
 
-def grd_below = SortoutEnv(x_local_max, y_local_max, x_local_min, y_local_min, ground_listx_local_max, y_local_max, x_local_min, y_local_min, s_grd_list):
+def SortoutEnv(x_local_max, y_local_max, x_local_min, y_local_min, s_grd_list):
     # ground type is only rectangle, so we don't need ID or type here
     num_grd = len(s_grd_list)
     env_local = []    
     for i in range(num_grd):
+        print("ground {}".format(s_grd_list[i]))
         pts = RotatePts(s_grd_list[i], "ground") # we can add groundtriangle
         if (pts[1][0] > x_local_max and pts[2][0] > x_local_max) or (pts[1][0] < x_local_min and pts[2][0] < x_local_min):
             pass# the block is outside the region
+            print("outside1")
+            print(pts[1][0], pts[2][0], x_local_max, x_local_min)
         elif (pts[1][1] > y_local_max and pts[2][1] > y_local_max) or (pts[1][1] < y_local_min and pts[2][1] < y_local_min):
+            print("outside2")
+            print(pts[1][1], pts[2][1], y_local_max, y_local_min)
             pass#  the block is outside the region
         else:
             env_local.append(s_grd_list[i])
@@ -167,7 +172,7 @@ def GetError(ref, state_ball):
         direction = pi/2
     else:
         direction = atan(state_ball[3]/state_ball[2])    
-    error = (state_ball[0]-ref[0])**2+(state_ball[1]-ref[1])**2+(direction-ref[2])**2 
+    error = (state_ball[0]-ref[0])**2+(state_ball[1]-ref[1])**2+100*(direction-ref[2])**2 
     error_vector = [ref[0]-state_ball[0], ref[1]-state_ball[1], ref[2]-direction]
     return error, error_vector
 
@@ -905,6 +910,7 @@ def Projection(p1, p2, ground_list):
     ymax = 500
     projected_line1 = []
     projected_line2 = []
+    print(xmax, ymax, xmin, ymin)
     grds_below = SortoutEnv(xmax, ymax, xmin, ymin, ground_list)
     if p1[0] > p2[0]: #p1 right
         pt_right = p1
@@ -914,84 +920,154 @@ def Projection(p1, p2, ground_list):
         pt_left = p1
 
     if not grds_below:
-        projected_line = []
+        pts_list_from_left = []
+        pts_list_from_right = [] 
     else:
+        print("grd below {}".format(grds_below))        
         _, pt_below_r, grd_choice_r = GetydistPt2grd(pt_right, grds_below)
         _, pt_below_l, grd_choice_l = GetydistPt2grd(pt_left, grds_below)
-
-        vertices_r = RotatePts(grd_choice_r, 'ground')
-        vertices_l = RotatePts(grd_choice_l, 'ground')
-
-        line_test_value_r = 100000
-        line_test_value_l = 100000
-        # To get the other points between right pt and left pt
-        for i in range(4):
-            line_r = LineFrom2pts(vertices_r[i-1],vertices_r[i])
-            a = line_r[0]
-            b = line_r[1]
-            c = line_r[2]
-            if abs(a*pt_below_r[0]+b*pt_below_r[1]+c)<line_test_value_r:
-                if b == 0: # x = c
-                    pass
-                elif a == 0: # y = c
-                    line_test_value_r = abs(a*pt_below_r[0]+b*pt_below_r[1]+c)
-                    left_pts_r = [vertices_r[(i+1)%4]]
-                if -a/b >0: # positive angle                          
-                    line_test_value_r = abs(a*pt_below_r[0]+b*pt_below_r[1]+c)
-                    left_pts_r = [vertices_r[(i+1)%4], vertices_r[i]]
-                else: # negative angle                                  
-                    line_test_value_r = abs(a*pt_below_r[0]+b*pt_below_r[1]+c)
-                    left_pts_r = [vertices_r[(i+1)%4]]      
-        for i in range(4):
-            line_l = LineFrom2pts(vertices_l[i-1],vertices_l[i])
-            a = line_l[0]
-            b = line_l[1]
-            c = line_l[2]
-            if abs(a*pt_below_l[0]+b*pt_below_l[1]+c)<line_test_value_l:
-                if b == 0: # x = c
-                    pass
-                elif a == 0: # y = c
-                    line_test_value_l = abs(a*pt_below_l[0]+b*pt_below_l[1]+c)
-                    right_pts_l = [vertices_l[i-1]]
-                if -a/b>0:
-                    right_pts_l = [vertices_l[i-1]]                    
-                    line_test_value2 = abs(a*pt_below_l[0]+b*pt_below_l[1]+c)
-                else:
-                    right_pts_l = [vertices_l[i-1], vertices_l[(i-2)%4]]                    
-                    line_test_value2 = abs(a*pt_below_l[0]+b*pt_below_l[1]+c)
-
-        # Decide the order of pts
-        pts_list_from_left = [pt_left]
-        pts_list_from_right = [pt_right]
-        # Check y value from the above
-        sequence = right_pts_l + left_pts_r        
-        sequence_array = np.array(sequence)
-        # sort by the order of y (above is first)
-        sequence_yorder_array = sequence_array[np.argsort(sequence_array[:,1])]
-        sequence_yorder = sequence_yorder_array.tolist()
-        for pt in sequence_yorder:
-            if pt[0] < pts_list_from_right[0][0] and pt[0] > pts_list_from_left[-1][0]: # if inside                
-                if pt in right_pts_l: # check where it comes from
-                    pts_list_from_left.append(pt) #[~,~,pt]
-                else:
-                    pts_list_from_right.insert(0, pt) #[pt, ~, ~]
-            else: # outside
-                pass
-        if pts_list_from_left[-1][1]>pts_list_from_right[0][1]:
-            # right part is above
-            pt_left_foot, intersect = GetFootVertical2block(pts_list_from_right[0], grd_choice_l, 'ground')
-            if intersect == True:
-                pts_list_from_left.append(pt_left_foot)
-            else:
-                pass
+        print("pt_below grd choice {}, {}, {}, {}".format(pt_below_l, pt_below_r, grd_choice_l, grd_choice_r))
+        if not grd_choice_l and not grd_choice_r:
+            pts_list_from_left = []
+            pts_list_from_right = [] 
+            # no intersect on left
+        elif grd_choice_r and not grd_choice_l:
+            vertices_r = RotatePts(grd_choice_r, 'ground')
+            line_test_value_r = 100000
+            for i in range(4):
+                line_r = LineFrom2pts(vertices_r[i-1],vertices_r[i])
+                a = line_r[0]
+                b = line_r[1]
+                c = line_r[2]
+                if abs(a*pt_below_r[0]+b*pt_below_r[1]+c)<line_test_value_r:
+                    if b == 0: # x = c
+                        pass
+                    elif a == 0: # y = c
+                        line_test_value_r = abs(a*pt_below_r[0]+b*pt_below_r[1]+c)
+                        left_pts_r = [vertices_r[i]]
+                    elif -a/b >0: # positive angle                          
+                        line_test_value_r = abs(a*pt_below_r[0]+b*pt_below_r[1]+c)
+                        left_pts_r = [vertices_r[(i+1)%4], vertices_r[i]]
+                    else: # negative angle                                  
+                        line_test_value_r = abs(a*pt_below_r[0]+b*pt_below_r[1]+c)
+                        left_pts_r = [vertices_r[i]]  
+            pts_list_from_right = left_pts_r + [pt_below_r] 
+            pts_list_from_left = []
+        elif grd_choice_l and not grd_choice_r:
+            vertices_l = RotatePts(grd_choice_l, 'ground')
+            line_test_value_l = 100000
+            for i in range(4):
+                line_l = LineFrom2pts(vertices_l[i-1],vertices_l[i])
+                a = line_l[0]
+                b = line_l[1]
+                c = line_l[2]
+                if abs(a*pt_below_l[0]+b*pt_below_l[1]+c)<line_test_value_l:
+                    if b == 0: # x = c
+                        pass
+                    elif a == 0: # y = c
+                        line_test_value_l = abs(a*pt_below_l[0]+b*pt_below_l[1]+c)
+                        right_pts_l = [vertices_l[i-1]]
+                    elif -a/b>0:
+                        right_pts_l = [vertices_l[i-1]]                    
+                        line_test_value_l = abs(a*pt_below_l[0]+b*pt_below_l[1]+c)
+                    else:
+                        right_pts_l = [vertices_l[i-1], vertices_l[(i-2)%4]]                    
+                        line_test_value_l = abs(a*pt_below_l[0]+b*pt_below_l[1]+c)
+            pts_list_from_right = []
+            pts_list_from_left = [pt_below_l] + right_pts_l 
         else:
-            pt_right_foot, intersect = GetFootVertical2block(pts_list_from_left[-1], grd_choice_r, 'ground')
-            if intersect == True:
-                pts_list_from_right.insert(0, pt_right_foot)
+            vertices_r = RotatePts(grd_choice_r, 'ground')
+            vertices_l = RotatePts(grd_choice_l, 'ground')
+            bool_overlap, intersect_pairs = CheckOverlap(grd_choice_l, grd_choice_r)
+            # left, right are projected on the same ground
+            if grd_choice_l == grd_choice_r:
+                pts_list_from_left = [pt_below_l]
+                pts_list_from_right = [pt_below_r]
             else:
-                pass          
+                line_test_value_r = 100000
+                line_test_value_l = 100000
+                # To get the other points between right pt and left pt
+                for i in range(4):
+                    line_r = LineFrom2pts(vertices_r[i-1],vertices_r[i])
+                    a = line_r[0]
+                    b = line_r[1]
+                    c = line_r[2]
+                    if abs(a*pt_below_r[0]+b*pt_below_r[1]+c)<line_test_value_r:
+                        if b == 0: # x = c
+                            pass
+                        elif a == 0: # y = c
+                            line_test_value_r = abs(a*pt_below_r[0]+b*pt_below_r[1]+c)
+                            left_pts_r = [vertices_r[i]]
+                        elif -a/b >0: # positive angle                          
+                            line_test_value_r = abs(a*pt_below_r[0]+b*pt_below_r[1]+c)
+                            left_pts_r = [vertices_r[(i+1)%4], vertices_r[i]]
+                        else: # negative angle                                  
+                            line_test_value_r = abs(a*pt_below_r[0]+b*pt_below_r[1]+c)
+                            left_pts_r = [vertices_r[i]]      
+                for i in range(4):
+                    line_l = LineFrom2pts(vertices_l[i-1],vertices_l[i])
+                    a = line_l[0]
+                    b = line_l[1]
+                    c = line_l[2]
+                    if abs(a*pt_below_l[0]+b*pt_below_l[1]+c)<line_test_value_l:
+                        if b == 0: # x = c
+                            pass
+                        elif a == 0: # y = c
+                            line_test_value_l = abs(a*pt_below_l[0]+b*pt_below_l[1]+c)
+                            right_pts_l = [vertices_l[i-1]]
+                        elif -a/b>0:
+                            right_pts_l = [vertices_l[i-1]]                    
+                            line_test_value_l = abs(a*pt_below_l[0]+b*pt_below_l[1]+c)
+                        else:
+                            right_pts_l = [vertices_l[i-1], vertices_l[(i-2)%4]]                    
+                            line_test_value_l = abs(a*pt_below_l[0]+b*pt_below_l[1]+c)
+                if bool_overlap == True:
+                    intersect_pts = []
+                    for intersect_pair in intersect_pairs:
+                        intersect_pt_temp = GetIntersectPt(intersect_pair[0][0], intersect_pair[0][1], intersect_pair[1][0], intersect_pair[1][1])
+                        intersect_pts.append(intersect_pt_temp)
+                    combine_r = left_pts_r + intersect_pts
+                    combine_l = right_pts_l + intersect_pts
+                    left_pts_r = combine_r
+                    right_pts_l = combine_l
+                print("left pts r {} {}".format(left_pts_r, right_pts_l))
+                # we can add vertices of the block inside
 
-    return pts_list_from_left, pts_list_from_right
+                # Decide the order of pts
+                pts_list_from_left = [pt_below_l]
+                pts_list_from_right = [pt_below_r]
+                # Check y value from the above
+                sequence = right_pts_l + left_pts_r        
+                sequence_array = np.array(sequence)
+                # sort by the order of y (above is first)
+                sequence_yorder_array = sequence_array[np.argsort(sequence_array[:,1])]
+                sequence_yorder = sequence_yorder_array.tolist()
+                for pt in sequence_yorder:
+                    if pt[0] < pts_list_from_right[0][0] and pt[0] > pts_list_from_left[-1][0]: # if inside                
+                        if pt in right_pts_l and pt not in left_pts_r: # check where it comes from
+                            pts_list_from_left.append(pt) #[~,~,pt]
+                        elif pt in left_pts_r and pt not in right_pts_l:
+                            pts_list_from_right.insert(0, pt) #[pt, ~, ~]
+                        else: # belong to both
+                            pts_list_from_left.append(pt) #[~,~,pt]
+                            pts_list_from_right.insert(0, pt) #[pt, ~, ~]
+                    else: # outside
+                        pass
+                if pts_list_from_left[-1][1]>pts_list_from_right[0][1]:
+                    # right part is above
+                    pt_left_foot, intersect = GetFootVertical2block(pts_list_from_right[0], grd_choice_l, 'ground')
+                    if intersect == True:
+                        pts_list_from_left.append(pt_left_foot)
+                    else:
+                        pass
+                else:
+                    pt_right_foot, intersect = GetFootVertical2block(pts_list_from_left[-1], grd_choice_r, 'ground')
+                    if intersect == True:
+                        pts_list_from_right.insert(0, pt_right_foot)
+                    else:
+                        pass          
+    # grd_choice_l, grd_choice_r can be returned
+    return pts_list_from_left, pts_list_from_right 
  
 
 
@@ -1053,13 +1129,12 @@ if __name__=="__main__":
 
 
     # Test for a local region
-    level_select = 3
+    level_select = 5
     # 0) Prerequisite : guide path
-    #guide_path = [[20,135],[50,155],[110,150],[180,170],[230,185],[280,175],[310,185],[340,195],[400,200]]
-    guide_path = [[450, 120], [443, 158], [411, 167], [379, 192], [350, 205], [315, 177], [276, 202], [241, 195], [204, 186], [166, 178], [135, 196], [104, 209], [78, 207], [61, 202], [34, 195]]
-    #guide_path = [[419, 285], [439, 254], [440, 240], [424, 217], [383, 195], [338, 154], [331, 153], [290, 169], [266, 133], [230, 153], [220, 141], [178, 144], [142, 136], [120, 126], [99, 120], [75, 100]]
-    #guide_path.reverse()
-    #guide_path = [[210, 100], [241, 119], [284, 139], [304, 129], [348, 137], [372, 144], [391, 151], [435, 153], [476, 167], [446, 210], [407, 223], [389, 227], [377, 260], [345, 276], [310, 274], [276, 263], [255, 283], [243, 287], [209, 294], [176, 288], [159, 292], [139, 293], [117, 300], [86, 302], [59, 292], [34, 285]]
+    # guide_path = [[20,135],[50,155],[110,150],[180,170],[230,185],[280,175],[310,185],[340,195],[400,200]]
+    #guide_path = [[450, 120], [443, 158], [411, 167], [379, 192], [350, 205], [315, 177], [276, 202], [241, 195], [204, 186], [166, 178], [135, 196], [104, 209], [78, 207], [61, 202], [34, 195]]
+    #guide_path = [[75, 100], [99, 120], [120, 126], [142, 136], [178, 144], [220, 141], [230, 153], [266, 133], [290, 169], [331, 153], [338, 154], [383, 195], [424, 217], [440, 240], [439, 254], [419, 285]]
+    guide_path = [[210, 100], [241, 119], [284, 139], [304, 129], [348, 137], [372, 144], [391, 151], [435, 153], [476, 167], [446, 210], [407, 223], [389, 227], [377, 260], [345, 276], [310, 274], [276, 263], [255, 283], [243, 287], [209, 294], [176, 288], [159, 292], [139, 293], [117, 300], [86, 302], [59, 292], [34, 285]]
     #guide_path = [[25, 100], [38, 119], [79, 132], [108, 154], [126, 142], [167, 137], [195, 134], [230, 147], [239, 150], [275, 154], [295, 179], [327, 202], [356, 212], [384, 222], [414, 234], [417, 253], [419, 275]]
     state_input = [] # decided ahead in previous local regions
     #state_input.append(["AO6G", 0,0,0])
@@ -1287,33 +1362,8 @@ if __name__=="__main__":
                 pt_min_left = []
                 grd_choice_right = []
                 grd_choice_left = []
-                
-                # if pt_min_moved[0] > block_state_desired[0]+w_block/2: # moving point is right
-                # # if u_move[0] >= u_actual[0]:
-                #     # It means the block move to the right. we will check left point               
-                #     for grd in ground_below:
-                #         pt_below, flag_intersect = GetFootVertical2block(pt_left, grd, 'ground')
-                #         print("pt below {}".format(pt_below))
-                #         if flag_intersect == True:
-                #             dist_below = pt_below[1] - pt_left[1]
-                #             # dist_below, pt_below = GetDistancePt2Block(pt_left, grd, 'ground')
-                #             if dist_below < dist_min:
-                #                 dist_min = dist_below
-                #                 pt_min = pt_below
-                #                 grd_choice = grd
-                #     print("pt_left, grd_choice {}".format(pt_left, grd_choice))
-                # else:
-                #     for grd in ground_below:
-                #         pt_below, flag_intersect = GetFootVertical2block(pt_right, grd, 'ground')
-                #         if flag_intersect == True:
-                #             dist_below = pt_below[1] - pt_right[1]
-                #             #dist_below, pt_below = GetDistancePt2Block(pt_right, grd, 'ground')
-                #             if dist_below < dist_min:
-                #                 dist_min = dist_below
-                #                 pt_min = pt_below
-                #                 grd_choice = grd
-                #     print("pt_right, grd_choice {}".format(pt_right, grd_choice))
-                
+
+
                 for grd in ground_below:
                     pt_below_left, flag_intersect_left = GetFootVertical2block(pt_left, grd, 'ground')
                     pt_below_right, flag_intersect_right = GetFootVertical2block(pt_right, grd, 'ground')
@@ -1356,6 +1406,7 @@ if __name__=="__main__":
                         if dist_min_search < dist_min_right:
                             pt_move_right = pt_min_search
                             dist_min_right = dist_min_search
+
                 # Move the main block 
                 if not pt_move_left and not pt_move_right:
                     xmove = 0
@@ -1364,7 +1415,7 @@ if __name__=="__main__":
                     xmove = pt_move_left[0] - pt_left[0]
                     ymove = pt_move_left[1] - pt_left[1]
                     dist_min_left = 0
-        , grd_choice        elif not pt_move_left and len(pt_move_right)>0:
+                elif not pt_move_left and len(pt_move_right)>0:
                     xmove = pt_move_right[0] - pt_right[0]
                     ymove = pt_move_right[1] - pt_right[1]
                     dist_min_right = 0
@@ -1380,6 +1431,8 @@ if __name__=="__main__":
                 u_move[0] += xmove
                 u_move[1] += ymove 
                 print("u_move and xmove, ymove")
+                print(u_move, xmove, ymove)
+
                 # pick the side which has the larger dist_min
                 if dist_min_left > dist_min_right:
                     dist_min = dist_min_left
@@ -1444,10 +1497,103 @@ if __name__=="__main__":
                     theta_support = grd_choice[4] # same with the angle of underlying ground
                     if abs(w_support-dist_min) < abs(h_support-dist_min):
                         theta_support += 90
-                        x_support -= w_support/2-h_support/2
+                        x_support -= w_support/2
                         y_support -= w_support/2-h_support/2
 
+                # Check feasibility (between suppoting and main)
+                if not idx_order_from_closest_to_farthest:
+                    pass
+                else:
+                    u_support = [x_support, y_support, w_support, h_support, theta_support]                    
+                    main_state = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
+                    bool_overlap, _ = CheckOverlap(main_state, u_support)
+                    while bool_overlap == True:                        
+                        u_move[1] -= 10
+                        # or we can do rotation
+                        main_state = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
+                        bool_overlap, _ = CheckOverlap(main_state, u_support)
+                    print("u_support")
+                    print(u_support)
 
+                # If we have supporting blocks, we also consider this when we check COM's stability
+                if not idx_order_from_closest_to_farthest:
+                    env_local_temp = env_local 
+                    state_support_temp = []
+                else:
+                    state_support_temp = [x_support, y_support, w_support, h_support, theta_support]
+                    env_local_temp = env_local  + [state_support_temp]
+                print("pt left {} {}".format(pt_left, pt_right))
+                print(env_local_temp)
+                # General thing with projection
+                interval_num = 5
+                grid4projection = []
+                pts_list_from_left_concatenate = []
+                pts_list_from_right_concatenate = []
+                for i in range(interval_num+1):
+                    x_temp = (pt_left[0]*(interval_num-i)+i*pt_right[0])/interval_num
+                    y_temp = (pt_left[1]*(interval_num-i)+i*pt_right[1])/interval_num
+                    grid4projection.append([x_temp, y_temp])
+                for i in range(interval_num):
+                    pts_list_from_left_temp, pts_list_from_right_temp = Projection(grid4projection[i],grid4projection[i+1], env_local_temp)
+                    print("pts_list_from_left_temp right temp {} {}".format(pts_list_from_left_temp, pts_list_from_right_temp))
+                    pts_list_from_left_concatenate.extend(pts_list_from_left_temp)
+                    pts_list_from_left_concatenate.extend(pts_list_from_right_temp)
+
+                # for one interval
+                pts_list_from_left, pts_list_from_right = Projection(pt_left, pt_right, env_local_temp)
+                #pts_list_from_left = pts_list_from_left_concatenate
+                #pts_list_from_right = pts_list_from_left_concatenate
+                print("pts_list_from_left and right {}, {}".format(pts_list_from_left, pts_list_from_right))
+                print(state_support_temp)
+
+                # For stability, COM should be between the closest 2 points. If not, we have to move it
+                # Move the block so that COM has same x as the closest point
+                dist_left = []
+                dist_right = []
+                if not pts_list_from_right and not pts_list_from_left:
+                    # need to move
+                    pass
+                elif not pts_list_from_right and pts_list_from_left:
+                    for pt_l in pts_list_from_left:
+                        dist_left.append(GetDistancePt2Line(pt_l, pt_left, pt_right))
+                elif pts_list_from_right and not pts_list_from_left:
+                    for pt_r in pts_list_from_right:
+                        dist_right.append(GetDistancePt2Line(pt_r, pt_left, pt_right))
+                else:
+                    for pt_l in pts_list_from_left:
+                        dist_left.append(GetDistancePt2Line(pt_l, pt_left, pt_right))
+                    for pt_r in pts_list_from_right:
+                        dist_right.append(GetDistancePt2Line(pt_r, pt_left, pt_right))
+
+                pts_combine = pts_list_from_left + pts_list_from_right        
+                dist_combine = dist_left + dist_right
+                dist_combine_array = np.array(dist_combine)
+                idx_shortest_order= np.argsort(dist_combine_array)  
+                criteria = 20
+                pts_below_close = []
+                for i in idx_shortest_order:
+                    if dist_combine[i] < criteria:
+                        pt_below_min_temp = pts_combine[i]
+                        pts_below_close.append(pt_below_min_temp)
+
+                print("pts below close dist comb {} {}".format(pts_below_close, dist_combine_array))
+                pts_below_close_array = np.array(pts_below_close)
+                array_temp = pts_below_close_array[np.argsort(pts_below_close_array[:,0])]
+                pt_below_min1= array_temp[0] # most left
+                pt_below_min2 = array_temp[-1] # most right
+                # COM's position
+                com = [u_move[0]+w_block/2, u_move[1]+h_block/2]
+                if com[0] < max(pt_below_min1[0], pt_below_min2[0]) and com[0]>min(pt_below_min1[0], pt_below_min2[0]):
+                    # inside -> stable / we can guess it maintains
+                    xmove = 0
+                elif com[0] < min(pt_below_min1[0], pt_below_min2[0]):
+                    # outside -> we have to move it
+                    xmove = min(pt_below_min1[0], pt_below_min2[0])-com[0]+10
+                else:
+                    xmove = max(pt_below_min1[0], pt_below_min2[0])-com[0]-10
+
+                #u_move[0] += xmove
+                print("distcombine, xmove u_move[0] com[0]: {} {} {} {}".format(dist_combine, xmove, u_move[0], com[0]))
 
             '''
             -------------------------------------------------------

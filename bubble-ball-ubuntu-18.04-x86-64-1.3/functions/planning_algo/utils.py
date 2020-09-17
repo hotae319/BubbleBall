@@ -56,7 +56,9 @@ def GetLinesFromBlock(state, block_type):
 
 
 def GetDistancePt2Line(pt, p1, p2):
-    return 1
+    line = LineFrom2pts(p1, p2)
+    dist, pt_foot = GetFootPerpendicular(pt, line)
+    return dist
 
 def GetDistancePt2Block(pt, state, obj_type):
     if obj_type == "ground" or obj_type == "woodrectangle" or obj_type == "metalrectangle":
