@@ -295,6 +295,7 @@ def CheckInsideInequality(point_list, ptest):
 
 def CheckIntersectPolygon(point_list, p1, p2):
     # Check if the line segment intersect the polygon or not
+    # Not judge if it is inside
     bool_intersect = False
     line_intersect = []
     pts_intersect = []

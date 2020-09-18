@@ -19,13 +19,13 @@ from math import cos, sin, pi, sqrt, atan
 import time
 import os, sys
 if __name__ == "__main__":
-    from planning_algo.utils import GetIntersectPt, RotatePts, LineFrom2pts, LineInequality, GetDistancePt2Line, GetLinesFromBlock, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
+    from planning_algo.utils import GetIntersectPt, CheckInside, RotatePts, LineFrom2pts, LineInequality, GetDistancePt2Line, GetLinesFromBlock, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
     from parsing_movableobjects_levels import parsing_objects, run_simulation, logging_trajectory
     from physics.obj_class import Ball, metalBlock, woodBlock, powerUps
     from physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue
     from physics.common.const import g, dt
 else:
-    from . planning_algo.utils import GetIntersectPt, RotatePts, LineFrom2pts, LineInequality, GetDistancePt2Line, GetLinesFromBlock, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
+    from . planning_algo.utils import GetIntersectPt, CheckInside, RotatePts, LineFrom2pts, LineInequality, GetDistancePt2Line, GetLinesFromBlock, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
     from . parsing_movableobjects_levels import parsing_objects, run_simulation, logging_trajectory
     from . physics.obj_class import Ball, metalBlock, woodBlock, powerUps
     from . physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue
@@ -74,9 +74,8 @@ def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list
     # new index for new list (the number is same with the guide path)
     idx_local_start = 0
     idx_local_end = 0
-    print("error list {}".format(error_list))
-    print("guide {}".format(guide_path))
-    print(x_predicted_traj_new, y_predicted_traj_new)
+    print("error list {}".format(error_list))    
+    print("traj new {} , {}".format(x_predicted_traj_new, y_predicted_traj_new))
     while error_list[idx_local_start] < error_threshold/18:
         idx_local_start += 1
     while error_list[idx_local_end] < error_threshold and idx_local_end < len(error_list)-1:
@@ -112,8 +111,7 @@ def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list
     print(x_predicted_traj_new)
     while y_local_max <= 500 and not s_grd_local :
     #while not s_grd_local or (CheckCondition(s_grd_local, y_pred_max, y_guide_max) and y_local_max <= 500):
-        y_local_max += 100
-        print(y_local_max)
+        y_local_max += 100        
         s_grd_local = SortoutEnv(x_local_max, y_local_max, x_local_min, y_local_min, s_grd_list)
     return guide_path_local, direction_end, x_local_max, y_local_max, idx_pick_start, idx_pick_end
 def SortedTrajInLocal(ball_traj, local_region):
@@ -140,23 +138,29 @@ def SortoutEnv(x_local_max, y_local_max, x_local_min, y_local_min, s_grd_list):
     # ground type is only rectangle, so we don't need ID or type here
     num_grd = len(s_grd_list)
     env_local = []    
+    state_region = [x_local_min, y_local_min, x_local_max-x_local_min, y_local_max-y_local_min, 0]
+    pts_region = RotatePts(state_region, "ground")
+    print("state region, pts_region : {}, {}".format(state_region, pts_region))
     for i in range(num_grd):
         print("ground {}".format(s_grd_list[i]))
-        pts = RotatePts(s_grd_list[i], "ground") # we can add groundtriangle
-        if (pts[1][0] > x_local_max and pts[2][0] > x_local_max) or (pts[1][0] < x_local_min and pts[2][0] < x_local_min):
-            pass# the block is outside the region
-            print("outside1")
-            print(pts[1][0], pts[2][0], x_local_max, x_local_min)
-        elif (pts[1][1] > y_local_max and pts[2][1] > y_local_max) or (pts[1][1] < y_local_min and pts[2][1] < y_local_min):
-            print("outside2")
-            print(pts[1][1], pts[2][1], y_local_max, y_local_min)
-            pass#  the block is outside the region
-        else:
+        pts_grd = RotatePts(s_grd_list[i], "ground") # we can add groundtriangle
+        # we can use CheckOverlap function here
+        bool_overlap, _ = CheckOverlap(s_grd_list[i], state_region) 
+        print("bool overlap {}",format(bool_overlap))
+        if bool_overlap == True:
             env_local.append(s_grd_list[i])
-        # for pt in pts:
-        #     if pt[0] <= x_local_max and pt[0] >= x_local_min and pt[1]<=y_local_max and pt[1] >=y_local_min:
-        #         env_local.append(s_grd_list[i])
-        #         break
+        # if (pts[1][0] > x_local_max and pts[2][0] > x_local_max) or (pts[1][0] < x_local_min and pts[2][0] < x_local_min):
+        #     pass# the block is outside the region
+        #     print("outside1")
+        #     print(pts[1][0], pts[2][0], x_local_max, x_local_min)
+        # elif (pts[1][1] > y_local_max and pts[2][1] > y_local_max) or (pts[1][1] < y_local_min and pts[2][1] < y_local_min):
+        #     print("outside2")
+        #     print(pts[1][1], pts[2][1], y_local_max, y_local_min)
+        #     pass#  the block is outside the region
+        # else:
+        #     env_local.append(s_grd_list[i])
+
+        print("\n")
     return env_local
 
 def PickMainBlock(movable_ID, ID_dict, guide_path_local, env_local):
@@ -859,16 +863,31 @@ def MoveBlock2CloestBlock(block_state, block_type, env_local, env_type_list = []
     return u_move, pt_min_moved
 
 def CheckOverlap(state1, state2):
+    # Search intersection
     pts1 = RotatePts(state1, 'rectangle')
     pts2 = RotatePts(state2, 'rectangle')
     intersect_pair = []
     bool_overlap = False
+
     for i in range(len(pts1)):
         bool_intersect, line_intersect, _ = CheckIntersectPolygon(pts2, pts1[i-1], pts1[i])
         if bool_intersect == True:
             bool_overlap = True
             for line in line_intersect:
                 intersect_pair.append([line, [pts1[i-1], pts1[i]]])
+    # Search inclusion of ALL points
+    pt1_xmax = max([pt1[0] for pt1 in pts1])
+    pt1_xmin = min([pt1[0] for pt1 in pts1])
+    pt2_ymax = max([pt2[1] for pt2 in pts2])
+    pt2_ymin = min([pt2[1] for pt2 in pts2])
+    for pt1 in pts1:
+        bool_inside2 = CheckInside(pts2, pt1)
+        if bool_inside2 == True:
+            bool_overlap == True
+    for pt2 in pts2:
+        bool_inside1 = CheckInside(pts1, pt2)
+        if bool_inside1 == True:
+            bool_overlap == True
     return bool_overlap, intersect_pair
 
 def AdjustmentConstraint(main_state, env_local, support_state = []):
@@ -1030,7 +1049,7 @@ def Projection(p1, p2, ground_list):
                     combine_l = right_pts_l + intersect_pts
                     left_pts_r = combine_r
                     right_pts_l = combine_l
-                print("left pts r {} {}".format(left_pts_r, right_pts_l))
+                print("left pts r {} {} \n".format(left_pts_r, right_pts_l))
                 # we can add vertices of the block inside
 
                 # Decide the order of pts
@@ -1068,73 +1087,194 @@ def Projection(p1, p2, ground_list):
                         pass          
     # grd_choice_l, grd_choice_r can be returned
     return pts_list_from_left, pts_list_from_right 
- 
+
+
+def Move2ClosePt(u_actual, block_state, block_type, s_grd_list):
+    w_block = block_state[2]
+    h_block = block_state[3]
+    block_state_actual = [u_actual[0], u_actual[1], w_block, h_block, u_actual[2]]
+    # Decide the region below the main block (roughly we can use [x,y,x+w,ymax])
+    pts_actual = RotatePts(block_state_actual, block_type)
+    x_actual_list = [pts_actual[i][0] for i in range(len(pts_actual))]
+    y_actual_list = [pts_actual[i][1] for i in range(len(pts_actual))]
+    x_actual_min = min(x_actual_list)
+    y_actual_min = min(y_actual_list)
+    x_actual_max = max(x_actual_list)
+    y_actual_max = 500
+
+    # 5) Prioritize the remaining blocks and place one roughly based on only geometry
+
+    # Check which grounds exist below the mainblock now among local_env
+    grounds_below = SortoutEnv(x_actual_max, y_actual_max, x_actual_min, y_actual_min, s_grd_list)
+    print("ground below {}".format(grounds_below))
+    
+    # Check the other point's shortest distance upto the ground
+    dist_min = 500
+    dist_min_left = 500
+    dist_min_right = 500
+    # for rectangle
+    pt_left = pts_actual[3]
+    pt_right = pts_actual[0]
+    pt_min = []
+    pt_min_right = []
+    pt_min_left = []
+    grd_choice_right = []
+    grd_choice_left = []
+
+    dist_min_left, pt_min_left, grd_choice_left = GetydistPt2grd(pt_left, grounds_below)
+    dist_min_right, pt_min_right, grd_choice_right = GetydistPt2grd(pt_right, grounds_below)
+
+    print("pt_min_right, pt_min_left, dist_min_right, dist_min_left : {}, {}, {}, {}".format(pt_min_right, pt_min_left,  dist_min_right, dist_min_left))
+    
+    # Search neighborhood to check if we can move a little bit
+    pt_move_left = []
+    pt_move_right = []
+    move_standard_low = 10
+    move_standard_high = 50
+    num_search = 4   
+    
+    if dist_min_left > move_standard_low and dist_min_left < move_standard_high:
+        for i in range(num_search):
+            pt_search = [pt_left[0]+(i+1)*dist_min_left/num_search, pt_left[1]]
+            dist_min_search, pt_min_search, _ = GetydistPt2grd(pt_search, grounds_below) #env_local is correct                   
+            if dist_min_search < dist_min_left:
+                pt_move_left = pt_min_search
+                dist_min_left = dist_min_search
+    if dist_min_right > move_standard_low and dist_min_right < move_standard_high:
+        for i in range(num_search):
+            pt_search = [pt_right[0]+(i+1)*dist_min_right/num_search, pt_right[1]]
+            dist_min_search, pt_min_search, _ = GetydistPt2grd(pt_search, grounds_below)
+            print("dist_min_search, pt_min_search {} {}".format(dist_min_search, pt_min_search ))
+            if dist_min_search < dist_min_right:
+                pt_move_right = pt_min_search
+                dist_min_right = dist_min_search
+
+    # Move the main block 
+    if not pt_move_left and not pt_move_right:
+        xmove = 0
+        ymove = 0
+    elif len(pt_move_left)>0 and not pt_move_right:
+        xmove = pt_move_left[0] - pt_left[0]
+        ymove = pt_move_left[1] - pt_left[1]
+        dist_min_left = 0
+    elif not pt_move_left and len(pt_move_right)>0:
+        xmove = pt_move_right[0] - pt_right[0]
+        ymove = pt_move_right[1] - pt_right[1]
+        dist_min_right = 0
+    else:
+        if dist_min_right > dist_min_left:
+            xmove = pt_move_left[0] - pt_left[0]
+            ymove = pt_move_left[1] - pt_left[1]
+            dist_min_left = 0
+        else:
+            xmove = pt_move_right[0] - pt_right[0]
+            ymove = pt_move_right[1] - pt_right[1]
+            dist_min_right = 0
+
+    u_move = [u_actual[0] + xmove, u_actual[1] + ymove, u_actual[2]] 
+    print("u_move and xmove, ymove")
+    print(u_move, xmove, ymove)
+
+    # Update
+    block_state_move = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
+    pts_move = RotatePts(block_state_move, block_type)
+    pt_left = pts_move[3]
+    pt_right = pts_move[0]
+
+    # Check pt_min again
+    dist_min_left, pt_min_left, grd_choice_left = GetydistPt2grd(pt_left, grounds_below)
+    dist_min_right, pt_min_right, grd_choice_right = GetydistPt2grd(pt_right, grounds_below)
+
+    return u_move, [pt_min_left, pt_min_right], [dist_min_left, dist_min_right], [grd_choice_left, grd_choice_right]
+
+def PrioritizeBlocks(dist_min, pt_min, num_movable, movable_ID, ID_dict, ID_state_matching):
+    idx_order_from_closest_to_farthest = []
+    gap_list = []
+    if dist_min < 25 or not pt_min: # no need for supporting blocks
+        pass
+    else:
+        for pick_support_idx in range(num_movable):
+            if pick_support_idx == pick_main_idx:
+                pass
+            else:
+                # Pick supporting blocks / we can add some priorities    
+                support_id = movable_ID[pick_support_idx]
+                support_block_type = ID_dict[support_id] # 'metalrectangle'
+                support_block_state = ID_state_matching[support_id] # [x,y,w,h,rot]
+                w_temp = support_block_state[2]
+                h_temp = support_block_state[3]
+                gap_temp = min(abs(dist_min-w_temp), abs(dist_min-h_temp))
+                if not gap_list:
+                    gap_list.append(gap_temp)
+                    idx_order_from_closest_to_farthest.append(pick_support_idx)
+                else:
+                    for j in range(len(gap_list)):
+                        if gap_list[j] >= gap_temp:
+                            gap_list.insert(j, gap_temp)
+                            idx_order_from_closest_to_farthest.insert(j, pick_support_idx)
+    print(idx_order_from_closest_to_farthest)
+    return idx_order_from_closest_to_farthest, gap_list
+
+def DecideSupportingState(idx_order_from_closest_to_farthest, pt_min, dist_min, grd_choice, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local):
+    # Return : x_support, y_suuport, w_support, h_support, theta_support, u_move, env_local_temp
+    if not idx_order_from_closest_to_farthest:
+        support_idx = None
+        support_id = None
+        support_type = None
+    else:
+        # rough guess of configuration of supporting blocks
+        support_idx = idx_order_from_closest_to_farthest[0]
+        support_id = movable_ID[support_idx]
+        support_type = ID_dict[support_id] # 'metalrectangle'
+        support_state = ID_state_matching[support_id] # [x,y,w,h,rot]
+        w_support = support_state[2]
+        h_support = support_state[3]
+        if pt_min[0] < block_state_desired[0]+w_block/2: # move right, left point is left
+            x_support = pt_min[0]
+            y_support = pt_min[1]-h_support
+        else:
+            x_support = pt_min[0]-w_support/2
+            y_support = pt_min[1]-h_support
+        theta_support = grd_choice[4] # same with the angle of underlying ground
+        if abs(w_support-dist_min) < abs(h_support-dist_min):
+            theta_support += 90
+            x_support -= w_support/2
+            y_support -= w_support/2-h_support/2
+
+    # Check feasibility (between supporting and main)
+    if not idx_order_from_closest_to_farthest:
+        pass
+    else:
+        u_support = [x_support, y_support, w_support, h_support, theta_support]                    
+        main_state = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
+        bool_overlap, _ = CheckOverlap(main_state, u_support)
+        while bool_overlap == True:                        
+            u_move[1] -= 10
+            # or we can do rotation
+            main_state = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
+            bool_overlap, _ = CheckOverlap(main_state, u_support)
+    # If we have supporting blocks, we also consider this when we check COM's stability
+    if not idx_order_from_closest_to_farthest:
+        env_local_temp = env_local 
+        state_support_temp = []
+    else:
+        state_support_temp = [x_support, y_support, w_support, h_support, theta_support]
+        env_local_temp = env_local  + [state_support_temp]
+
+    
+    print(state_support_temp)
+    return state_support_temp, u_move, env_local_temp
 
 
 if __name__=="__main__":
-    # s_ball_ini = [60,80,0,5,15] # s_ball_ini (x,y,vx,vy,r)
-    # ref = [100,100,0.3]
-    # block_type = "rectangle"
-    # block_state = [0,0,50,150,0]
-    # model_error = np.array([10,10,0.1])
-    # # FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s_ball_ini):
-    # u = FindOptimalInput([[60,80],[100,100]], 0.3, "rectangle", [0,0,50,150,0],[60,80,0,5,15])
-    # #u = FindOptimalInput([[60,80],[100,100]], 0.3, "circle", [0,0,50,50,0],[60,80,0,5,15])
-    # print("u is {}".format(u))
-    # y = (s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],s_ball_ini[4], ref[0],ref[1],ref[2], block_type, block_state)
-    # f_actual = fmodel(u,*y)+model_error
-    # error = ref - f_actual
-    # e = np.matmul(error,error)
-    # print("error is {}".format(e))
-    # print(f_actual)
-    # #a = np.array([1,2])
-    # #print(ff(a,*(2,3)))
-    # #f = nd.Jacobian(ff)
-    # #print(f(a,*(4,3)))
-    # unew = UpdateModelAfterFailure([[60,80],[100,100]], 0.3, "rectangle", [0,0,50,150,0],[60,80,0,5,15], u, f_actual)
-    # print("new u is {}".format(unew))
-    # f_new = fmodel(unew,*y)+model_error
-    # print(f_new)
-    # unew1 = UpdateModelAfterFailure([[60,80],[100,100]], 0.3, "rectangle", [0,0,50,150,0],[60,80,0,5,15], unew, f_new)
-    # print("new u is {}".format(unew1))
-    # f_new1 = fmodel(unew1,*y)+model_error
-    # print(f_new1)
-
-    # # Draw local region 
-    # xregion = 100
-    # yregion = 100
-    # xsize = 200
-    # ysize = 150
-    # s_grd_list = [[60,150,80,10,0],[150,170,90,15,10]]
-    # guide_path_local = [[100,100],[150,110],[200,150],[300,160]]
-    # s_ball_ini = [100,100,10,0,15]
-
-    # # woodblock state
-    # w = 100
-    # h = 20
-
-    # x = 150
-    # y = 130
-    # rot = 5
-    # vx = 0
-    # vy = 0
-    # w_rot = 0
-    # block_type = "rectangle"
-
-    # block1 = woodBlock(x, y, w, h, rot, vx, vy, w_rot, block_type)
-    # display = Drawing(xregion, yregion, xsize, ysize, s_grd_list, guide_path_local, s_ball_ini)
-    # display.drawlocalregion()
-    # display.drawobject(block1)
-    # plt.show()
-
 
     # Test for a local region
-    level_select = 5
+    level_select = 4
     # 0) Prerequisite : guide path
     # guide_path = [[20,135],[50,155],[110,150],[180,170],[230,185],[280,175],[310,185],[340,195],[400,200]]
     #guide_path = [[450, 120], [443, 158], [411, 167], [379, 192], [350, 205], [315, 177], [276, 202], [241, 195], [204, 186], [166, 178], [135, 196], [104, 209], [78, 207], [61, 202], [34, 195]]
-    #guide_path = [[75, 100], [99, 120], [120, 126], [142, 136], [178, 144], [220, 141], [230, 153], [266, 133], [290, 169], [331, 153], [338, 154], [383, 195], [424, 217], [440, 240], [439, 254], [419, 285]]
-    guide_path = [[210, 100], [241, 119], [284, 139], [304, 129], [348, 137], [372, 144], [391, 151], [435, 153], [476, 167], [446, 210], [407, 223], [389, 227], [377, 260], [345, 276], [310, 274], [276, 263], [255, 283], [243, 287], [209, 294], [176, 288], [159, 292], [139, 293], [117, 300], [86, 302], [59, 292], [34, 285]]
+    guide_path = [[75, 100], [99, 120], [120, 126], [142, 136], [178, 144], [220, 141], [230, 153], [266, 133], [290, 169], [331, 153], [338, 154], [383, 195], [424, 217], [440, 240], [439, 254], [419, 285]]
+    #guide_path = [[210, 100], [241, 119], [284, 139], [304, 129], [348, 137], [372, 144], [391, 151], [435, 153], [476, 167], [446, 210], [407, 223], [389, 227], [377, 260], [345, 276], [310, 274], [276, 263], [255, 283], [243, 287], [209, 294], [176, 288], [159, 292], [139, 293], [117, 300], [86, 302], [59, 292], [34, 285]]
     #guide_path = [[25, 100], [38, 119], [79, 132], [108, 154], [126, 142], [167, 137], [195, 134], [230, 147], [239, 150], [275, 154], [295, 179], [327, 202], [356, 212], [384, 222], [414, 234], [417, 253], [419, 275]]
     state_input = [] # decided ahead in previous local regions
     #state_input.append(["AO6G", 0,0,0])
@@ -1332,198 +1472,42 @@ if __name__=="__main__":
             if block_type[0:4] == "wood":
                 # move the block a little bit to closest block
                 #u_move, pt_min_moved = MoveBlock2CloestBlock(block_state_desired, block_type, env_local, env_type_list = [])
-                u_move = u_actual
-                print("u_actual, u_move")
-                print(u_actual, u_move)
+                
+                u_move, pt_min_lr, dist_min_lr, grd_choice_lr = Move2ClosePt(u_actual, block_state, block_type, s_grd_list)
+                pt_min_left = pt_min_lr[0]
+                pt_min_right = pt_min_lr[1]
+                dist_min_left = dist_min_lr[0]
+                dist_min_right = dist_min_lr[1]
+                grd_choice_left = grd_choice_lr[0]
+                grd_choice_right = grd_choice_lr[1]
                 block_state_move = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
-                # Decide the region below the main block (roughly we can use [x,y,x+w,ymax])
-                pts_move = RotatePts(block_state_move, block_type)
-                x_move_list = [pts_move[i][0] for i in range(len(pts_move))]
-                y_move_list = [pts_move[i][1] for i in range(len(pts_move))]
-                x_move_min = min(x_move_list)
-                y_move_min = min(y_move_list)
-                x_move_max = max(x_move_list)
-                y_move_max = 500
-
-                # 5) Prioritize the remaining blocks and place one roughly based on only geometry
-
-                # Check which grounds exist below the mainblock now among local_env
-                ground_below = SortoutEnv(x_move_max, y_move_max, x_move_min, y_move_min, s_grd_list)
-                print("ground below {}".format(ground_below))
-                # Check the other point's shortest distance upto the ground
-                dist_min = 500
-                dist_min_left = 500
-                dist_min_right = 500
-                # for rectangle
+                pts_move = RotatePts(block_state_move, 'ground')
                 pt_left = pts_move[3]
                 pt_right = pts_move[0]
-                pt_min = []
-                pt_min_right = []
-                pt_min_left = []
-                grd_choice_right = []
-                grd_choice_left = []
-
-
-                for grd in ground_below:
-                    pt_below_left, flag_intersect_left = GetFootVertical2block(pt_left, grd, 'ground')
-                    pt_below_right, flag_intersect_right = GetFootVertical2block(pt_right, grd, 'ground')
-                    if flag_intersect_left == True:
-                        print("dddd : {} {}".format(pt_below_left, flag_intersect_left))
-                        dist_below_left = pt_below_left[1] - pt_left[1]
-                        if dist_below_left < dist_min_left:
-                            dist_min_left = dist_below_left
-                            pt_min_left = pt_below_left
-                            grd_choice_left = grd
-                        # dist_below, pt_below = GetDistancePt2Block(pt_left, grd, 'ground')
-                    if flag_intersect_right == True:
-                        dist_below_right = pt_below_right[1] - pt_right[1]
-                        if dist_below_right < dist_min_right:
-                            dist_min_right = dist_below_right
-                            pt_min_right = pt_below_right
-                            grd_choice_right = grd
-
-                print("pt_min_right, pt_min_left, dist_min_right, dist_min_left : {}, {}, {}, {}".format(pt_min_right, pt_min_left,  dist_min_right, dist_min_left))
-                
-                pt_move_left = []
-                pt_move_right = []
-                move_standard_low = 10
-                move_standard_high = 50
-                # search neighborhood to check if we can move a little bit
-                if dist_min_left > move_standard_low and dist_min_left < move_standard_high:
-                    num_search = 4                    
-                    for i in range(num_search):
-                        pt_search = [pt_left[0]+(i+1)*dist_min_left/num_search, pt_left[1]]
-                        dist_min_search, pt_min_search, _ = GetydistPt2grd(pt_search, ground_below) #env_local is correct                   
-                        if dist_min_search < dist_min_left:
-                            pt_move_left = pt_min_search
-                            dist_min_left = dist_min_search
-                if dist_min_right > move_standard_low and dist_min_right < move_standard_high:
-                    num_search = 4                    
-                    for i in range(num_search):
-                        pt_search = [pt_right[0]+(i+1)*dist_min_right/num_search, pt_right[1]]
-                        dist_min_search, pt_min_search, _ = GetydistPt2grd(pt_search, ground_below)
-                        print("dist_min_search, pt_min_search {} {}".format(dist_min_search, pt_min_search ))
-                        if dist_min_search < dist_min_right:
-                            pt_move_right = pt_min_search
-                            dist_min_right = dist_min_search
-
-                # Move the main block 
-                if not pt_move_left and not pt_move_right:
-                    xmove = 0
-                    ymove = 0
-                elif len(pt_move_left)>0 and not pt_move_right:
-                    xmove = pt_move_left[0] - pt_left[0]
-                    ymove = pt_move_left[1] - pt_left[1]
-                    dist_min_left = 0
-                elif not pt_move_left and len(pt_move_right)>0:
-                    xmove = pt_move_right[0] - pt_right[0]
-                    ymove = pt_move_right[1] - pt_right[1]
-                    dist_min_right = 0
-                else:
-                    if dist_min_right > dist_min_left:
-                        xmove = pt_move_left[0] - pt_left[0]
-                        ymove = pt_move_left[1] - pt_left[1]
-                        dist_min_left = 0
-                    else:
-                        xmove = pt_move_right[0] - pt_right[0]
-                        ymove = pt_move_right[1] - pt_right[1]
-                        dist_min_right = 0
-                u_move[0] += xmove
-                u_move[1] += ymove 
-                print("u_move and xmove, ymove")
-                print(u_move, xmove, ymove)
-
-                # pick the side which has the larger dist_min
-                if dist_min_left > dist_min_right:
-                    dist_min = dist_min_left
-                    pt_min = pt_min_left
-                    grd_choice = grd_choice_left
-                else:
-                    dist_min = dist_min_right
-                    pt_min = pt_min_right
-                    grd_choice = grd_choice_right
-
                 # Compare the distance with some sizes of block
-                # idx_order_from_closetst_to_farthest : priority order
-                idx_order_from_closest_to_farthest = []
-                gap_list = []
-                if dist_min < 25 or not pt_min: # no need for supporting blocks
-                    pass
-                else:
-                    for pick_support_idx in range(num_movable):
-                        if pick_support_idx == pick_main_idx:
-                            pass
-                        else:
-                            # Pick supporting blocks / we can add some priorities    
-                            support_id = movable_ID[pick_support_idx]
-                            support_block_type = ID_dict[support_id] # 'metalrectangle'
-                            support_block_state = ID_state_matching[support_id] # [x,y,w,h,rot]
-                            w_temp = support_block_state[2]
-                            h_temp = support_block_state[3]
-                            gap_temp = min(abs(dist_min-w_temp), abs(dist_min-h_temp))
-                            if not gap_list:
-                                gap_list.append(gap_temp)
-                                idx_order_from_closest_to_farthest.append(pick_support_idx)
-                            else:
-                                for j in range(len(gap_list)):
-                                    if gap_list[j] >= gap_temp:
-                                        gap_list.insert(j, gap_temp)
-                                        idx_order_from_closest_to_farthest.insert(j, pick_support_idx)
-                print(idx_order_from_closest_to_farthest)
+                # idx_order_from_closest_to_farthest : priority order
 
-                
+                idx_order_from_closest_to_farthest_left, gap_list_left = PrioritizeBlocks(dist_min_left, pt_min_left, num_movable, movable_ID, ID_dict, ID_state_matching)
+                idx_order_from_closest_to_farthest_right, gap_list_right = PrioritizeBlocks(dist_min_right, pt_min_right, num_movable, movable_ID, ID_dict, ID_state_matching)
+        
+
                 # 6) Decide the position of supporting blocks
 
                 # mainblock_desired_state(x,y,w,h,rot,vx,vy,w_rot)
                 mainblock_desired_state = [u_move[0],u_move[1],w_block,h_block,u_move[2],vel_desired[0],vel_desired[1],vel_desired[2]]
-                if not idx_order_from_closest_to_farthest:
-                    support_idx = None
-                    support_id = None
-                    support_type = None
-                else:
-                    # rough guess of configuration of supporting blocks
-                    support_idx = idx_order_from_closest_to_farthest[0]
-                    support_id = movable_ID[support_idx]
-                    support_type = ID_dict[support_id] # 'metalrectangle'
-                    support_state = ID_state_matching[support_id] # [x,y,w,h,rot]
-                    w_support = support_state[2]
-                    h_support = support_state[3]
-                    if pt_min[0] < block_state_desired[0]+w_block/2: # move right, left point is left
-                        x_support = pt_min[0]
-                        y_support = pt_min[1]-h_support
-                    else:
-                        x_support = pt_min[0]-w_support/2
-                        y_support = pt_min[1]-h_support
-                    theta_support = grd_choice[4] # same with the angle of underlying ground
-                    if abs(w_support-dist_min) < abs(h_support-dist_min):
-                        theta_support += 90
-                        x_support -= w_support/2
-                        y_support -= w_support/2-h_support/2
-
-                # Check feasibility (between suppoting and main)
-                if not idx_order_from_closest_to_farthest:
+                state_support_temp, u_move, env_local_temp = DecideSupportingState(idx_order_from_closest_to_farthest_left, pt_min_left, dist_min_left, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                state_support_temp, u_move, env_local_temp = DecideSupportingState(idx_order_from_closest_to_farthest_right, pt_min_right, dist_min_right, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                
+                if not state_support_temp:
                     pass
                 else:
-                    u_support = [x_support, y_support, w_support, h_support, theta_support]                    
-                    main_state = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
-                    bool_overlap, _ = CheckOverlap(main_state, u_support)
-                    while bool_overlap == True:                        
-                        u_move[1] -= 10
-                        # or we can do rotation
-                        main_state = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
-                        bool_overlap, _ = CheckOverlap(main_state, u_support)
-                    print("u_support")
-                    print(u_support)
+                    x_support = state_support_temp[0]
+                    y_support = state_support_temp[1]
+                    w_support = state_support_temp[2]
+                    h_support = state_support_temp[3]
+                    theta_support = state_support_temp[4]
 
-                # If we have supporting blocks, we also consider this when we check COM's stability
-                if not idx_order_from_closest_to_farthest:
-                    env_local_temp = env_local 
-                    state_support_temp = []
-                else:
-                    state_support_temp = [x_support, y_support, w_support, h_support, theta_support]
-                    env_local_temp = env_local  + [state_support_temp]
-                print("pt left {} {}".format(pt_left, pt_right))
-                print(env_local_temp)
+
                 # General thing with projection
                 interval_num = 5
                 grid4projection = []
@@ -1575,6 +1559,10 @@ if __name__=="__main__":
                     if dist_combine[i] < criteria:
                         pt_below_min_temp = pts_combine[i]
                         pts_below_close.append(pt_below_min_temp)
+                # If there are no pts who has smaller distance than 20        
+                if len(pts_below_close) < 2:
+                    pts_below_close.append(pts_combine[0])
+                    pts_below_close.append(pts_combine[1])
 
                 print("pts below close dist comb {} {}".format(pts_below_close, dist_combine_array))
                 pts_below_close_array = np.array(pts_below_close)
@@ -1685,6 +1673,7 @@ if __name__=="__main__":
                         pass
                     else:
                         print("ggg")
+
                         u_support = [x_support, y_support, w_support, h_support, theta_support]
 
                         # Check feasibility (between suppoting and main)
