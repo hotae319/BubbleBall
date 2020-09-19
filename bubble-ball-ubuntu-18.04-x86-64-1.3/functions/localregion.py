@@ -938,10 +938,11 @@ def Projection(p1, p2, ground_list):
         pt_right = p2
         pt_left = p1
 
+
     if not grds_below:
         pts_list_from_left = []
         pts_list_from_right = [] 
-    else:
+    else: # there are some grds 
         print("grd below {}".format(grds_below))        
         _, pt_below_r, grd_choice_r = GetydistPt2grd(pt_right, grds_below)
         _, pt_below_l, grd_choice_l = GetydistPt2grd(pt_left, grds_below)
@@ -995,13 +996,15 @@ def Projection(p1, p2, ground_list):
             pts_list_from_right = []
             pts_list_from_left = [pt_below_l] + right_pts_l 
         else:
+        # grds_below exist for both sides
             vertices_r = RotatePts(grd_choice_r, 'ground')
             vertices_l = RotatePts(grd_choice_l, 'ground')
             bool_overlap, intersect_pairs = CheckOverlap(grd_choice_l, grd_choice_r)
             # left, right are projected on the same ground
             if grd_choice_l == grd_choice_r:
-                pts_list_from_left = [pt_below_l]
-                pts_list_from_right = [pt_below_r]
+                pt_below_mid = [(pt_below_l[0]+pt_below_r[0])/2,(pt_below_l[1]+pt_below_r[1])/2]
+                pts_list_from_left = [pt_below_l, pt_below_mid] # for convenience, add the mid point
+                pts_list_from_right = [pt_below_mid, pt_below_r]
             else:
                 line_test_value_r = 100000
                 line_test_value_l = 100000
@@ -1263,8 +1266,183 @@ def DecideSupportingState(idx_order_from_closest_to_farthest, pt_min, dist_min, 
 
     
     print(state_support_temp)
-    return state_support_temp, u_move, env_local_temp
+    return state_support_temp, u_move, env_local, support_idx
 
+def GetVerticalDistancePt2Line(pt, p1, p2):
+    t = (pt[0]-p2[0])/(p1[0]-p2[0])
+    y = p1[1]*t+p2[1]*(1-t)
+    vertical_dist = abs(pt[1]-y)
+    return vertical_dist
+
+def JudgeStability(pt_left, pt_right, com, pts_combine):
+    # Returns : current_stability, num_supporting_necessary, which pts need supporting blocks
+    # 3) Judge the stability for each state moved
+    # For stability, COM should be between the closest 2 points. If not, we have to move it
+    # Move the block so that COM has same x as the closest point
+    dist_combine = []
+    side_support = []
+    pairs_for_supports = []
+    dist_pairs = []
+    # for pts_list_segment in pts_list_from_left_concatenate:
+    #     if not pts_list_segment:
+    #         pass
+    #     else:
+    #         for pt_segment in pts_list_segment:
+    #             dist_combine.append(GetDistancePt2Line(pt_segment, pt_left, pt_right))
+
+    for pt_combine in pts_combine:
+        dist_combine.append(GetVerticalDistancePt2Line(pt_combine, pt_left, pt_right))
+
+    # dist_left = []
+    # dist_right = []
+    # if not pts_list_from_right and not pts_list_from_left:
+    #     # There's nothing below this block
+    #     pass
+    # elif not pts_list_from_right and pts_list_from_left:
+    #     for pt_l in pts_list_from_left:
+    #         dist_left.append(GetDistancePt2Line(pt_l, pt_left, pt_right))
+    # elif pts_list_from_right and not pts_list_from_left:
+    #     for pt_r in pts_list_from_right:
+    #         dist_right.append(GetDistancePt2Line(pt_r, pt_left, pt_right))
+    # else:
+    #     for pt_l in pts_list_from_left:
+    #         dist_left.append(GetDistancePt2Line(pt_l, pt_left, pt_right))
+    #     for pt_r in pts_list_from_right:
+    #         dist_right.append(GetDistancePt2Line(pt_r, pt_left, pt_right))
+
+    # pts_combine = pts_list_from_left + pts_list_from_right        
+    # dist_combine = dist_left + dist_right
+    dist_combine_array = np.array(dist_combine)
+    idx_shortest_order= np.argsort(dist_combine_array)  
+
+    # 3) Collect the points which are inside the criteria
+    criteria = 20
+    pts_below_inside_criteria = []
+    for i in idx_shortest_order:
+        if dist_combine[i] < criteria:
+            pt_below_min_temp = pts_combine[i]
+            pts_below_inside_criteria.append(pt_below_min_temp)
+
+    # If there are no pts who has smaller distance than 20        
+    if len(pts_below_inside_criteria) == 1:
+        # need 1 supporting block
+        num_supporting_necessary = 1
+        current_stability = False
+        pts_below_inside_criteria.append(pts_combine[0])
+        pts_below_inside_criteria.append(pts_combine[1])
+        # Check which side pts_below_inside_criteria[0] is on
+        if pts_below_inside_criteria[0] - com[0] > 0:
+            # we should support the left side
+            side_support = 'left'
+            # pick pts from pts_combine, which is on the left of com
+            for pt in pts_combine:
+                if pt[0] < com[0]:
+                    pairs_for_supports.append([pt, pts_below_inside_criteria[0]])
+                    dist_pairs.append()
+        else:
+            side_support = 'right'
+            for pt in pts_combine:
+                if pt[0] > com[0]:
+                    pairs_for_supports.append([pts_below_inside_criteria[0], pt])
+
+    elif not pts_below_inside_criteria:
+        # need 2 supporting block
+        num_supporting_necessary = 2
+        current_stability = False
+        pts_below_inside_criteria.append(pts_combine[0])
+        pts_below_inside_criteria.append(pts_combine[1])
+        side_support = 'both'
+        # pick two pts which are farthest each other
+        pts_combine_array = np.array(pts_combine)
+        array_temp = pts_combine_array[np.argsort(pts_combine_array[:,0])]
+        pt_below_min1 = array_temp[0] # most left
+        pt_below_min2 = array_temp[-1] # most right
+        pairs_for_supports.append([pt_below_min1, pt_below_min2])
+    else:
+        # Check if COM is inside
+        # 1) Move or 2) choose 1 supporting block
+        # print("pts below close dist comb {} {}".format(pts_below_inside_criteria, dist_combine_array))
+        # Pick two points which are farthest
+
+        pts_below_inside_criteria_array = np.array(pts_below_inside_criteria)
+        array_temp = pts_below_inside_criteria_array[np.argsort(pts_below_inside_criteria_array[:,0])]
+        pt_below_min1 = array_temp[0] # most left
+        pt_below_min2 = array_temp[-1] # most right
+        # Check COM's position
+        
+        if com[0] < max(pt_below_min1[0], pt_below_min2[0]) and com[0] > min(pt_below_min1[0], pt_below_min2[0]):
+            # inside -> stable / we can guess it maintains
+            xmove = 0
+            num_supporting_necessary = 0
+            current_stability = True            
+        elif com[0] <= min(pt_below_min1[0], pt_below_min2[0]):
+            # outside -> we have to move it
+            xmove = min(pt_below_min1[0], pt_below_min2[0])-com[0]+10
+            num_supporting_necessary = 1
+            current_stability = False
+            side_support = 'left'
+            for pt in pts_combine:
+                if pt[0] < com[0]:
+                    pairs_for_supports.append([pt, pt_below_min2])
+        elif com[0] >= max(pt_below_min1[0], pt_below_min2[0]):
+            xmove = max(pt_below_min1[0], pt_below_min2[0])-com[0]-10
+            num_supporting_necessary = 1
+            current_stability = False
+            side_support = 'right'
+            for pt in pts_combine:
+                if pt[0] > com[0]:
+                    pairs_for_supports.append([pt_below_min1, pt[0]])
+        
+
+    #u_move[0] += xmove
+    print("pts below inside {}".format(pts_below_inside_criteria))
+    print("pairs {}".format(pairs_for_supports))
+
+    return current_stability, num_supporting_necessary, pairs_for_supports
+
+def ProjectionInterval(interval_num, pt_left, pt_right, env_local):
+    # 2) Get projected points 
+    
+    grid4projection = []
+    pts_list_from_left_concatenate = []
+    pts_list_from_right_concatenate = []
+    pts_combine = []
+    for i in range(interval_num+1):
+        x_temp = (pt_left[0]*(interval_num-i)+i*pt_right[0])/interval_num
+        y_temp = (pt_left[1]*(interval_num-i)+i*pt_right[1])/interval_num
+        grid4projection.append([x_temp, y_temp])
+    for i in range(interval_num):
+        pts_list_from_left_temp, pts_list_from_right_temp = Projection(grid4projection[i],grid4projection[i+1], env_local)
+        print("pts_list_from_left_temp right temp {} {}".format(pts_list_from_left_temp, pts_list_from_right_temp))
+        # Entire list of all projected points : [pt1,pt2,pt3,...]
+        if not pts_list_from_left_temp:
+            pass
+        elif not pts_combine:
+            pts_combine.extend(pts_list_from_left_temp)
+        elif pts_list_from_left_temp[0] == pts_combine[-1]:
+            pts_combine.extend(pts_list_from_left_temp[1:])  # In order for the repeated point to be counted once
+        else:
+            pts_combine.extend(pts_list_from_left_temp)
+
+        if not pts_list_from_right_temp:
+            pass
+        elif not pts_list_from_left_temp:
+            pts_combine.extend(pts_list_from_right_temp)
+        elif pts_list_from_left_temp[-1] == pts_list_from_right_temp[0]:                        
+            pts_combine.extend(pts_list_from_right_temp[1:])  # In order for the repeated point to be counted once
+        else:
+            pts_combine.extend(pts_list_from_right_temp)
+
+        # Divide by the segment : [[pt1,pt2,..],[],[],[],...
+        pts_list_from_left_concatenate.append(pts_list_from_left_temp)
+        pts_list_from_left_concatenate.append(pts_list_from_right_temp)
+
+    # for one interval
+    #pts_list_from_left, pts_list_from_right = Projection(pt_left, pt_right, env_local_temp)
+    #pts_list_from_left = pts_list_from_left_concatenate
+    #pts_list_from_right = pts_list_from_left_concatenate
+    print("pts_list_from_left_concatenate, pts_combine : {}, {}".format(pts_list_from_left_concatenate, pts_combine))
+    return pts_combine, pts_list_from_left_concatenate
 
 if __name__=="__main__":
 
@@ -1470,9 +1648,7 @@ if __name__=="__main__":
 
             # 4)-2. Move the block to the point which is closest to the main block (only when the block is wood)
             if block_type[0:4] == "wood":
-                # move the block a little bit to closest block
-                #u_move, pt_min_moved = MoveBlock2CloestBlock(block_state_desired, block_type, env_local, env_type_list = [])
-                
+                # move the block a little bit to closest block (about the both side vertex) + search around                 
                 u_move, pt_min_lr, dist_min_lr, grd_choice_lr = Move2ClosePt(u_actual, block_state, block_type, s_grd_list)
                 pt_min_left = pt_min_lr[0]
                 pt_min_right = pt_min_lr[1]
@@ -1484,104 +1660,160 @@ if __name__=="__main__":
                 pts_move = RotatePts(block_state_move, 'ground')
                 pt_left = pts_move[3]
                 pt_right = pts_move[0]
+
                 # Compare the distance with some sizes of block
                 # idx_order_from_closest_to_farthest : priority order
-
                 idx_order_from_closest_to_farthest_left, gap_list_left = PrioritizeBlocks(dist_min_left, pt_min_left, num_movable, movable_ID, ID_dict, ID_state_matching)
                 idx_order_from_closest_to_farthest_right, gap_list_right = PrioritizeBlocks(dist_min_right, pt_min_right, num_movable, movable_ID, ID_dict, ID_state_matching)
         
 
-                # 6) Decide the position of supporting blocks
-
+                # 6) Decide the position of supporting blocks (main block can be a little moved to avoid overlapping)
                 # mainblock_desired_state(x,y,w,h,rot,vx,vy,w_rot)
                 mainblock_desired_state = [u_move[0],u_move[1],w_block,h_block,u_move[2],vel_desired[0],vel_desired[1],vel_desired[2]]
-                state_support_temp, u_move, env_local_temp = DecideSupportingState(idx_order_from_closest_to_farthest_left, pt_min_left, dist_min_left, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
-                state_support_temp, u_move, env_local_temp = DecideSupportingState(idx_order_from_closest_to_farthest_right, pt_min_right, dist_min_right, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                state_support_temp_left, u_move, env_local_temp, _ = DecideSupportingState(idx_order_from_closest_to_farthest_left, pt_min_left, dist_min_left, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                state_support_temp_right, u_move, env_local_temp, _ = DecideSupportingState(idx_order_from_closest_to_farthest_right, pt_min_right, dist_min_right, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
                 
-                if not state_support_temp:
+                if not state_support_temp_left and not state_support_temp_right:
+                    pass
+                elif state_support_temp_right and not state_support_temp_left:
+                    x_support = state_support_temp_right[0]
+                    y_support = state_support_temp_right[1]
+                    w_support = state_support_temp_right[2]
+                    h_support = state_support_temp_right[3]
+                    theta_support = state_support_temp_right[4]
+                else:
+                    x_support = state_support_temp_left[0]
+                    y_support = state_support_temp_left[1]
+                    w_support = state_support_temp_left[2]
+                    h_support = state_support_temp_left[3]
+                    theta_support = state_support_temp_left[4]
+                print(state_support_temp_left, state_support_temp_right)
+
+
+
+
+                # General Algorithm for supporting with projection method
+                # 1) Search around while moving back and forth
+                # Return : idx_best, u_best, num_supporting_best
+                search_resolution = 10
+                num_search = 3            
+                idx_best = -1  
+                idx_best_stable = -1  
+                num_supporting_best = 3
+                stability_true_list = []
+                for i in range(num_search*2+1):
+                    u_actual_search = [u_actual[0] + (-num_search + i)*search_resolution, u_actual[1] + (-num_search + i)*search_resolution, u_actual[2]]
+                    block_state_search = [u_actual_search[0], u_actual_search[1], w_block, h_block, u_actual_search[2]]
+                    pts_search = RotatePts(block_state_search, 'ground')
+                    pt_left = pts_search[3]
+                    pt_right = pts_search[0]
+                    # Project and get the projected points
+                    interval_num = 5
+                    pts_combine, pts_list_from_left_concatenate = ProjectionInterval(interval_num, pt_left, pt_right, env_local)
+                    com = [u_move[0]+w_block/2, u_move[1]+h_block/2]
+                    # Judge stability
+                    current_stability, num_supporting_necessary, pairs_for_supports = JudgeStability(pt_left, pt_right, com, pts_combine)
+                    print("current stability, num_supporting_necessary, pairs_for_supports : {} {} {}".format(current_stability, num_supporting_necessary, pairs_for_supports))
+                    # Choose the better one
+                    if current_stability == True:
+                        stability_true_list.append(i)
+                        if abs(i-num_search) <= abs(idx_best_stable-num_search): 
+                            u_best = u_actual_search    
+                            idx_best_stable = i 
+                            num_supporting_best = num_supporting_necessary
+                    else:   
+                        if not stability_true_list:
+                            if (num_supporting_necessary <= num_supporting_best) and (abs(i-num_search) <= abs(idx_best-num_search)):
+                                u_best = u_actual_search
+                                idx_best = i 
+                                num_supporting_best = num_supporting_necessary
+                if not stability_true_list:
                     pass
                 else:
+                    idx_best = idx_best_stable
+                print("num_supporting_best {}".format(num_supporting_best))
+                # Prioritize the remaining blocks
+                if num_supporting_best == 0:
+                    pass
+                elif num_supporting_best == 1:     
+                    # Pick out one pair   
+                    pair_for_supports = pairs_for_supports[0] # [p1,p2]
+                    # Get vertical_dist and compare     
+                    d1 = GetVerticalDistancePt2Line(pair_for_supports[0], pt_left, pt_right)
+                    d2 = GetVerticalDistancePt2Line(pair_for_supports[1], pt_left, pt_right)
+                    if d1 > d2:
+                        dist_min = d1
+                        pt_min = pair_for_supports[0]
+                        idx_order_from_closest_to_farthest, gap_list = PrioritizeBlocks(dist_min, pt_min, num_movable, movable_ID, ID_dict, ID_state_matching)
+                    else:
+                        dist_min = d2
+                        pt_min = pair_for_supports[1]
+                        idx_order_from_closest_to_farthest, gap_list = PrioritizeBlocks(dist_min, pt_min, num_movable, movable_ID, ID_dict, ID_state_matching)
+                    # Ground choice of pt_min
+                    _, _, grd_choice = GetydistPt2grd([pt_min[0], pt_min[1]-5], env_local) # to check which grd
+
+                    # Decide the state of support
+                    state_support_temp, u_move, env_local_temp, support_idx = DecideSupportingState(idx_order_from_closest_to_farthest, pt_min, dist_min, grd_choice, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                    # Matching block
+                    support_id = movable_ID[support_idx]
+                    support_type = ID_dict[support_id] # 'metalrectangle'
+                    support_state = ID_state_matching[support_id] # [x,y,w,h,rot]
+                    w_support = support_state[2]
+                    h_support = support_state[3]
+                else: # more than 2
+                    # Pick out one pair
+                    pair_for_supports = pairs_for_supports[0]
+                    dist_min_left = GetVerticalDistancePt2Line(pair_for_supports[0], pt_left, pt_right)
+                    pt_min_left = pair_for_supports[0]
+                    dist_min_right = GetVerticalDistancePt2Line(pair_for_supports[1], pt_left, pt_right)
+                    pt_min_right = pair_for_supports[1]
+                    idx_order_from_closest_to_farthest_left, gap_list_left = PrioritizeBlocks(dist_min, pt_min, num_movable, movable_ID, ID_dict, ID_state_matching)
+                    idx_order_from_closest_to_farthest_right, gap_list_right = PrioritizeBlocks(dist_min, pt_min, num_movable, movable_ID, ID_dict, ID_state_matching)
+                    # Ground choice of pt_min_left and pt_min_right
+                    _, _, grd_choice_left = GetydistPt2grd([pt_min_left[0], pt_min_left[1]-5], env_local) # to check which grd
+                    _, _, grd_choice_right = GetydistPt2grd([pt_min_right[0], pt_min_right[1]-5], env_local)
+
+                    # Decide the state of support
+                    state_support_temp_left, u_move, env_local_temp, support_idx1 = DecideSupportingState(idx_order_from_closest_to_farthest_left, pt_min_left, dist_min_left, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                    idx_order_from_closest_to_farthest_right.remove(support_idx1)
+                    state_support_temp_right, u_move, env_local_temp, support_idx2 = DecideSupportingState(idx_order_from_closest_to_farthest_right, pt_min_right, dist_min_right, grd_choice_right, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                    # Matching block
+                    # 1
+                    support_id1 = movable_ID[support_idx1]
+                    support_type1 = ID_dict[support_id1] # 'metalrectangle'
+                    support_state1 = ID_state_matching[support_id1] # [x,y,w,h,rot]
+                    w_support1 = support_state1[2]
+                    h_support1 = support_state1[3]
+                    # 2
+                    support_id2 = movable_ID[support_idx2]
+                    support_type2 = ID_dict[support_id2] # 'metalrectangle'
+                    support_state2 = ID_state_matching[support_id2] # [x,y,w,h,rot]
+                    w_support2 = support_state2[2]
+                    h_support2 = support_state2[3]
+
+                # Assign values               
+                if num_supporting_best == 0:
+                    pass
+                elif num_supporting_best == 1:
                     x_support = state_support_temp[0]
                     y_support = state_support_temp[1]
                     w_support = state_support_temp[2]
                     h_support = state_support_temp[3]
                     theta_support = state_support_temp[4]
-
-
-                # General thing with projection
-                interval_num = 5
-                grid4projection = []
-                pts_list_from_left_concatenate = []
-                pts_list_from_right_concatenate = []
-                for i in range(interval_num+1):
-                    x_temp = (pt_left[0]*(interval_num-i)+i*pt_right[0])/interval_num
-                    y_temp = (pt_left[1]*(interval_num-i)+i*pt_right[1])/interval_num
-                    grid4projection.append([x_temp, y_temp])
-                for i in range(interval_num):
-                    pts_list_from_left_temp, pts_list_from_right_temp = Projection(grid4projection[i],grid4projection[i+1], env_local_temp)
-                    print("pts_list_from_left_temp right temp {} {}".format(pts_list_from_left_temp, pts_list_from_right_temp))
-                    pts_list_from_left_concatenate.extend(pts_list_from_left_temp)
-                    pts_list_from_left_concatenate.extend(pts_list_from_right_temp)
-
-                # for one interval
-                pts_list_from_left, pts_list_from_right = Projection(pt_left, pt_right, env_local_temp)
-                #pts_list_from_left = pts_list_from_left_concatenate
-                #pts_list_from_right = pts_list_from_left_concatenate
-                print("pts_list_from_left and right {}, {}".format(pts_list_from_left, pts_list_from_right))
-                print(state_support_temp)
-
-                # For stability, COM should be between the closest 2 points. If not, we have to move it
-                # Move the block so that COM has same x as the closest point
-                dist_left = []
-                dist_right = []
-                if not pts_list_from_right and not pts_list_from_left:
-                    # need to move
-                    pass
-                elif not pts_list_from_right and pts_list_from_left:
-                    for pt_l in pts_list_from_left:
-                        dist_left.append(GetDistancePt2Line(pt_l, pt_left, pt_right))
-                elif pts_list_from_right and not pts_list_from_left:
-                    for pt_r in pts_list_from_right:
-                        dist_right.append(GetDistancePt2Line(pt_r, pt_left, pt_right))
                 else:
-                    for pt_l in pts_list_from_left:
-                        dist_left.append(GetDistancePt2Line(pt_l, pt_left, pt_right))
-                    for pt_r in pts_list_from_right:
-                        dist_right.append(GetDistancePt2Line(pt_r, pt_left, pt_right))
+                    # 1
+                    x_support1 = state_support_temp_left[0]
+                    y_support1 = state_support_temp_left[1]
+                    w_support1 = state_support_temp_left[2]
+                    h_support1 = state_support_temp_left[3]
+                    theta_support1 = state_support_temp_left[4]
+                    # 2
+                    x_support2 = state_support_temp_right[0]
+                    y_support2 = state_support_temp_right[1]
+                    w_support2 = state_support_temp_right[2]
+                    h_support2 = state_support_temp_right[3]
+                    theta_support2 = state_support_temp_right[4]
 
-                pts_combine = pts_list_from_left + pts_list_from_right        
-                dist_combine = dist_left + dist_right
-                dist_combine_array = np.array(dist_combine)
-                idx_shortest_order= np.argsort(dist_combine_array)  
-                criteria = 20
-                pts_below_close = []
-                for i in idx_shortest_order:
-                    if dist_combine[i] < criteria:
-                        pt_below_min_temp = pts_combine[i]
-                        pts_below_close.append(pt_below_min_temp)
-                # If there are no pts who has smaller distance than 20        
-                if len(pts_below_close) < 2:
-                    pts_below_close.append(pts_combine[0])
-                    pts_below_close.append(pts_combine[1])
-
-                print("pts below close dist comb {} {}".format(pts_below_close, dist_combine_array))
-                pts_below_close_array = np.array(pts_below_close)
-                array_temp = pts_below_close_array[np.argsort(pts_below_close_array[:,0])]
-                pt_below_min1= array_temp[0] # most left
-                pt_below_min2 = array_temp[-1] # most right
-                # COM's position
-                com = [u_move[0]+w_block/2, u_move[1]+h_block/2]
-                if com[0] < max(pt_below_min1[0], pt_below_min2[0]) and com[0]>min(pt_below_min1[0], pt_below_min2[0]):
-                    # inside -> stable / we can guess it maintains
-                    xmove = 0
-                elif com[0] < min(pt_below_min1[0], pt_below_min2[0]):
-                    # outside -> we have to move it
-                    xmove = min(pt_below_min1[0], pt_below_min2[0])-com[0]+10
-                else:
-                    xmove = max(pt_below_min1[0], pt_below_min2[0])-com[0]-10
-
-                #u_move[0] += xmove
-                print("distcombine, xmove u_move[0] com[0]: {} {} {} {}".format(dist_combine, xmove, u_move[0], com[0]))
 
             '''
             -------------------------------------------------------
@@ -1640,17 +1872,20 @@ if __name__=="__main__":
                 while bool_success == False and error_min > err_criterion_ball and err_main > err_main_criterion and flag_supportings and count_4th_loop <2 and  block_type[0:4] == "wood":
                     count_4th_loop += 1
                     print("iteration 1st loop, 2nd loop, 3rd loop, 4th loop : {0}, {1}, {2}, {3}".format(count_1st_loop, count_2nd_loop, count_3rd_loop, count_4th_loop))
+                    # First loop (No update)
                     if count_4th_loop == 1:
-                        if not idx_order_from_closest_to_farthest:
-                            # we have to change the optimization solution
-                            flag_supportings = False
-                        pass
-                    else:
-                        # 8)-0. From required force or error_main_array, we can update the supporting blocks    
-                        if not idx_order_from_closest_to_farthest:
-                            # we have to change the optimization solution
+                        if num_supporting_best == 0:
                             flag_supportings = False
                         else:
+                            flag_supportings = True
+                            # we have to change the optimization solution
+                    # Loop for updates
+                    else:
+                        # 8)-0. From required force or error_main_array, we can update the supporting blocks    
+                        if num_supporting_best == 0:
+                            # we have to change the optimization solution
+                            flag_supportings = False
+                        elif num_supporting_best == 1:
                             # rough guess of configuration of supporting blocks
                             support_idx = idx_order_from_closest_to_farthest[0]
                             support_id = movable_ID[support_idx]
@@ -1668,21 +1903,27 @@ if __name__=="__main__":
                             theta_support = grd_choice[4] # same with the angle of underlying ground
                             if abs(w_support-dist_min) < abs(h_support-dist_min):
                                 theta_support += 90
+                        else:
+                            pass
+
 
                     if flag_supportings == False:
                         pass
                     else:
-                        print("ggg")
+                        if num_supporting_best == 1:                            
+                            print("ggg")
+                            u_support = [x_support, y_support, w_support, h_support, theta_support]
 
-                        u_support = [x_support, y_support, w_support, h_support, theta_support]
-
-                        # Check feasibility (between suppoting and main)
-                        main_state = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
-                        bool_overlap, _ = CheckOverlap(main_state, u_support)
-                        while bool_overlap == True:
-                            u_move[1] -= 10
+                            # Check feasibility (between suppoting and main)
                             main_state = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
                             bool_overlap, _ = CheckOverlap(main_state, u_support)
+                            while bool_overlap == True:
+                                u_move[1] -= 10
+                                main_state = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
+                                bool_overlap, _ = CheckOverlap(main_state, u_support)
+                        else:
+                            u_support1 = [x_support1, y_support1, w_support1, h_support1, theta_support1]
+                            u_support2 = [x_support2, y_support2, w_support2, h_support2, theta_support2]
      
 
                         # Get a new feasible solution among the previous feasible set
@@ -1716,20 +1957,31 @@ if __name__=="__main__":
                     # input the main block
                     state_input_localregion = []
                     state_input_localregion.append([input_id, u_move[0], u_move[1], u_move[2]])
+                    
                     # input the supporting block
-                    if support_id == None:
+                    if flag_supportings == False:
                         pass
                     else: 
-                        state_input_localregion.append([support_id, x_support, y_support, theta_support])
-                    
+                        if num_supporting_best == 1:
+                            state_input_localregion.append([support_id, x_support, y_support, theta_support])
+                        else:
+                            state_input_localregion.append([support_id1, x_support1, y_support1, theta_support1])
+                            state_input_localregion.append([support_id2, x_support2, y_support2, theta_support2])
                     # draw the figure with blocks
                     alpha = 1.15-(count_1st_loop + count_2nd_loop + count_3rd_loop + count_4th_loop)*0.05
                     if not obj_main_pre:
                         print("no obj before")
                         pass
                     else:
-                        display.eraseobject()
-
+                        if num_supporting_best == 0:
+                            display.eraseobject()
+                        elif num_supporting_best == 1:
+                            display.eraseobject()
+                            display.eraseobject()
+                        else:
+                            display.eraseobject()
+                            display.eraseobject()
+                            display.eraseobject()
 
                     print("time check {}".format(time.time()))
                     if block_type == "metalrectangle" or block_type == "metalrtriangle":
@@ -1738,14 +1990,31 @@ if __name__=="__main__":
                     elif block_type == "woodrectangle" or block_type == "woodrtriangle":
                         woodblock = woodBlock(u_move[0],u_move[1],w_block,h_block,u_move[2])     
                         obj_main_pre = display.drawobject(woodblock,alpha)
-                    if support_type == "metalrectangle" or support_type == "metalrtriangle":
-                        metalblock = metalBlock(x_support,y_support,w_support,h_support,theta_support)
-                        obj_support_pre = display.drawobject(metalblock, alpha)
-                    elif support_type == "woodrectangle" or support_type == "woodrtriangle":
-                        woodblock = woodBlock(x_support,y_support,w_support,h_support,theta_support)
-                        obj_support_pre = display.drawobject(woodblock, alpha)
-                    elif support_type == None:
+                    if num_supporting_best == 0:
                         pass
+                    elif num_supporting_best == 1:                        
+                        if support_type == "metalrectangle" or support_type == "metalrtriangle":
+                            metalblock = metalBlock(x_support,y_support,w_support,h_support,theta_support)
+                            obj_support_pre = display.drawobject(metalblock, alpha)
+                        elif support_type == "woodrectangle" or support_type == "woodrtriangle":
+                            woodblock = woodBlock(x_support,y_support,w_support,h_support,theta_support)
+                            obj_support_pre = display.drawobject(woodblock, alpha)
+                    else:
+                        # 1
+                        if support_type1 == "metalrectangle" or support_type1 == "metalrtriangle":
+                            metalblock1 = metalBlock(x_support1,y_support1,w_support1,h_support1,theta_support1)
+                            obj_support_pre1 = display.drawobject(metalblock1, alpha)
+                        elif support_type1 == "woodrectangle" or support_type1 == "woodrtriangle":
+                            woodblock1 = woodBlock(x_support1,y_support1,w_support1,h_support1,theta_support1)
+                            obj_support_pre1 = display.drawobject(woodblock1, alpha)
+                        # 2
+                        if support_type2 == "metalrectangle" or support_type2 == "metalrtriangle":
+                            metalblock2 = metalBlock(x_support2,y_support2,w_support2,h_support2,theta_support2)
+                            obj_support_pre2 = display.drawobject(metalblock2, alpha)
+                        elif support_type2 == "woodrectangle" or support_type2 == "woodrtriangle":
+                            woodblock2 = woodBlock(x_support2,y_support2,w_support2,h_support2,theta_support2)
+                            obj_support_pre2 = display.drawobject(woodblock2, alpha) 
+
                     print("time check 2: {}".format(time.time()))
                     plt.show(block=False)
                     plt.pause(5)
@@ -1766,10 +2035,14 @@ if __name__=="__main__":
                     # check the order of the ID in the ID_list 
                     mainblock_traj = traj_list[pick_main_idx+1] # in log file, we include ball, so we need to add 1
                     ball_traj = traj_list[ball_idx]    
-                    if support_idx == None:
+                    if num_supporting_best == 0:
                         support_block_traj = []
-                    else:
+                    elif num_supporting_best == 1:
                         support_block_traj = traj_list[support_idx+1]
+                    else:
+                        support_block_traj1 = traj_list[support_idx1+1]
+                        support_block_traj2 = traj_list[support_idx2+1]
+
                     contact_idx_blocks = 0
                     contact_idx_ball2main = 0
                     flag_collision_blocks = False
