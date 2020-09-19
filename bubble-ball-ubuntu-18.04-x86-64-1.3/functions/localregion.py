@@ -140,13 +140,13 @@ def SortoutEnv(x_local_max, y_local_max, x_local_min, y_local_min, s_grd_list):
     env_local = []    
     state_region = [x_local_min, y_local_min, x_local_max-x_local_min, y_local_max-y_local_min, 0]
     pts_region = RotatePts(state_region, "ground")
-    print("state region, pts_region : {}, {}".format(state_region, pts_region))
+    #print("state region, pts_region : {}, {}".format(state_region, pts_region))
     for i in range(num_grd):
-        print("ground {}".format(s_grd_list[i]))
+        #print("ground {}".format(s_grd_list[i]))
         pts_grd = RotatePts(s_grd_list[i], "ground") # we can add groundtriangle
         # we can use CheckOverlap function here
         bool_overlap, _ = CheckOverlap(s_grd_list[i], state_region) 
-        print("bool overlap {}",format(bool_overlap))
+        #print("bool overlap {}",format(bool_overlap))
         if bool_overlap == True:
             env_local.append(s_grd_list[i])
         # if (pts[1][0] > x_local_max and pts[2][0] > x_local_max) or (pts[1][0] < x_local_min and pts[2][0] < x_local_min):
@@ -365,6 +365,7 @@ def ConvertUopt2Ureal(u_input, block_type, w_block, h_block, s_ball_ini):
         u_actual = [xball-(w_block*sqrt(2)-l)*cos(theta), yball+ rball*2, theta]
     return u_actual, vel_desired
 
+
 def MakeF1withTraj(traj_sorted, x1):
     # traj_sorted : [[vx,vy,w,x,y,rot],...] / x1 can be either positive or negative
     x_init = traj_sorted[0][3]
@@ -514,8 +515,10 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
                     u_actual, vel_desired = ConvertUopt2Ureal(u_input, block_type, w_main, h_main, s_ball_ini)
                     main_state = [u_actual[0], u_actual[1], w_main, h_main, u_actual[2]]
                     need_adjust = AdjustmentConstraint(main_state, env_local)
-                    # If feasible, compute objective function
+                    com = [u_actual[0]+w_main/2, u_actual[1]+h_main/2]
+                    # If feasible, compute objective function / store stability list
                     if need_adjust == False:
+                        #current_stability, num_supporting_necessary, pairs_for_supports = GetBestState4Support(u_actual, env_local, com)
                         f_obj_value_current = fobj(u_input,*y)   
                         uf_tuple = (u_input, f_obj_value_current)
                         u_fobj_tuple_list.append(uf_tuple)                 
@@ -943,7 +946,7 @@ def Projection(p1, p2, ground_list):
         pts_list_from_left = []
         pts_list_from_right = [] 
     else: # there are some grds 
-        print("grd below {}".format(grds_below))        
+        #print("grd below {}".format(grds_below))        
         _, pt_below_r, grd_choice_r = GetydistPt2grd(pt_right, grds_below)
         _, pt_below_l, grd_choice_l = GetydistPt2grd(pt_left, grds_below)
         print("pt_below grd choice {}, {}, {}, {}".format(pt_below_l, pt_below_r, grd_choice_l, grd_choice_r))
@@ -1052,7 +1055,7 @@ def Projection(p1, p2, ground_list):
                     combine_l = right_pts_l + intersect_pts
                     left_pts_r = combine_r
                     right_pts_l = combine_l
-                print("left pts r {} {} \n".format(left_pts_r, right_pts_l))
+                #print("left pts r {} {} \n".format(left_pts_r, right_pts_l))
                 # we can add vertices of the block inside
 
                 # Decide the order of pts
@@ -1109,7 +1112,7 @@ def Move2ClosePt(u_actual, block_state, block_type, s_grd_list):
 
     # Check which grounds exist below the mainblock now among local_env
     grounds_below = SortoutEnv(x_actual_max, y_actual_max, x_actual_min, y_actual_min, s_grd_list)
-    print("ground below {}".format(grounds_below))
+    #print("ground below {}".format(grounds_below))
     
     # Check the other point's shortest distance upto the ground
     dist_min = 500
@@ -1127,7 +1130,7 @@ def Move2ClosePt(u_actual, block_state, block_type, s_grd_list):
     dist_min_left, pt_min_left, grd_choice_left = GetydistPt2grd(pt_left, grounds_below)
     dist_min_right, pt_min_right, grd_choice_right = GetydistPt2grd(pt_right, grounds_below)
 
-    print("pt_min_right, pt_min_left, dist_min_right, dist_min_left : {}, {}, {}, {}".format(pt_min_right, pt_min_left,  dist_min_right, dist_min_left))
+    #print("pt_min_right, pt_min_left, dist_min_right, dist_min_left : {}, {}, {}, {}".format(pt_min_right, pt_min_left,  dist_min_right, dist_min_left))
     
     # Search neighborhood to check if we can move a little bit
     pt_move_left = []
@@ -1147,7 +1150,7 @@ def Move2ClosePt(u_actual, block_state, block_type, s_grd_list):
         for i in range(num_search):
             pt_search = [pt_right[0]+(i+1)*dist_min_right/num_search, pt_right[1]]
             dist_min_search, pt_min_search, _ = GetydistPt2grd(pt_search, grounds_below)
-            print("dist_min_search, pt_min_search {} {}".format(dist_min_search, pt_min_search ))
+            #print("dist_min_search, pt_min_search {} {}".format(dist_min_search, pt_min_search ))
             if dist_min_search < dist_min_right:
                 pt_move_right = pt_min_search
                 dist_min_right = dist_min_search
@@ -1292,7 +1295,7 @@ def JudgeStability(pt_left, pt_right, com, pts_combine):
 
     for pt_combine in pts_combine:
         dist_combine.append(GetVerticalDistancePt2Line(pt_combine, pt_left, pt_right))
-
+    print("pts combine in JudgeStability : {}".format(pts_combine))
     # dist_left = []
     # dist_right = []
     # if not pts_list_from_right and not pts_list_from_left:
@@ -1316,7 +1319,7 @@ def JudgeStability(pt_left, pt_right, com, pts_combine):
     idx_shortest_order= np.argsort(dist_combine_array)  
 
     # 3) Collect the points which are inside the criteria
-    criteria = 20
+    criteria = 25
     pts_below_inside_criteria = []
     for i in idx_shortest_order:
         if dist_combine[i] < criteria:
@@ -1331,14 +1334,13 @@ def JudgeStability(pt_left, pt_right, com, pts_combine):
         pts_below_inside_criteria.append(pts_combine[0])
         pts_below_inside_criteria.append(pts_combine[1])
         # Check which side pts_below_inside_criteria[0] is on
-        if pts_below_inside_criteria[0] - com[0] > 0:
+        if pts_below_inside_criteria[0][0] - com[0] > 0:
             # we should support the left side
             side_support = 'left'
             # pick pts from pts_combine, which is on the left of com
             for pt in pts_combine:
                 if pt[0] < com[0]:
-                    pairs_for_supports.append([pt, pts_below_inside_criteria[0]])
-                    dist_pairs.append()
+                    pairs_for_supports.append([pt, pts_below_inside_criteria[0]])                    
         else:
             side_support = 'right'
             for pt in pts_combine:
@@ -1357,7 +1359,10 @@ def JudgeStability(pt_left, pt_right, com, pts_combine):
         array_temp = pts_combine_array[np.argsort(pts_combine_array[:,0])]
         pt_below_min1 = array_temp[0] # most left
         pt_below_min2 = array_temp[-1] # most right
+        pt_below_min1 = pt_below_min1.tolist()
+        pt_below_min2 = pt_below_min2.tolist()
         pairs_for_supports.append([pt_below_min1, pt_below_min2])
+        print("pairs_for_supports in JUdge :{}".format(pairs_for_supports))
     else:
         # Check if COM is inside
         # 1) Move or 2) choose 1 supporting block
@@ -1368,6 +1373,8 @@ def JudgeStability(pt_left, pt_right, com, pts_combine):
         array_temp = pts_below_inside_criteria_array[np.argsort(pts_below_inside_criteria_array[:,0])]
         pt_below_min1 = array_temp[0] # most left
         pt_below_min2 = array_temp[-1] # most right
+        pt_below_min1 = pt_below_min1.tolist()
+        pt_below_min2 = pt_below_min2.tolist()
         # Check COM's position
         
         if com[0] < max(pt_below_min1[0], pt_below_min2[0]) and com[0] > min(pt_below_min1[0], pt_below_min2[0]):
@@ -1392,7 +1399,7 @@ def JudgeStability(pt_left, pt_right, com, pts_combine):
             for pt in pts_combine:
                 if pt[0] > com[0]:
                     pairs_for_supports.append([pt_below_min1, pt[0]])
-        
+        print("pairs_for_supports in JUdge :{}".format(pairs_for_supports))
 
     #u_move[0] += xmove
     print("pts below inside {}".format(pts_below_inside_criteria))
@@ -1441,8 +1448,32 @@ def ProjectionInterval(interval_num, pt_left, pt_right, env_local):
     #pts_list_from_left, pts_list_from_right = Projection(pt_left, pt_right, env_local_temp)
     #pts_list_from_left = pts_list_from_left_concatenate
     #pts_list_from_right = pts_list_from_left_concatenate
-    print("pts_list_from_left_concatenate, pts_combine : {}, {}".format(pts_list_from_left_concatenate, pts_combine))
+    print(" pts_combine :  {}".format(pts_combine))
     return pts_combine, pts_list_from_left_concatenate
+
+
+def TestState4Support(u_actual_search, env_local, com):
+    block_state_search = [u_actual_search[0], u_actual_search[1], w_block, h_block, u_actual_search[2]]
+    pts_search = RotatePts(block_state_search, 'ground')
+    # Check overlap with environment
+    need_adjust = AdjustmentConstraint(block_state_search, env_local)
+    if need_adjust == True:
+        violation_overlap = True
+        current_stability = []
+        num_supporting_necessary = []
+        pairs_for_supports = []
+    else:
+        violation_overlap = False
+        # Project and get the projected points
+        pt_left = pts_search[3]
+        pt_right = pts_search[0]
+        interval_num = 5
+        print("pt left, right: {}, {}".format(pt_left, pt_right))
+        pts_combine, pts_list_from_left_concatenate = ProjectionInterval(interval_num, pt_left, pt_right, env_local)        
+        # Judge stability
+        current_stability, num_supporting_necessary, pairs_for_supports = JudgeStability(pt_left, pt_right, com, pts_combine)
+    return current_stability, num_supporting_necessary, pairs_for_supports, violation_overlap
+
 
 if __name__=="__main__":
 
@@ -1609,7 +1640,9 @@ if __name__=="__main__":
                 # Find the optimal solution for a main block
                 # 1) grid for u (x1 is fixed before)
                 # grid 
-                
+                ref = (guide_path_local_update[-1][0],guide_path_local_update[-1][1], direction_end)
+                y = (s_ball_mid_temp[0],s_ball_mid_temp[1],s_ball_mid_temp[2],s_ball_mid_temp[3],s_ball_mid_temp[4], ref[0],ref[1],ref[2], block_type, block_state, env_local)
+               
                 u_optimal_temp, f_obj_min_temp, umain_fobj_tuple_list = FindOptimalInputGrid(guide_path_local_update, direction_end, block_type, block_state, s_ball_mid_temp, env_local)
                 for umain_fobj_tuple in umain_fobj_tuple_list:
                     umain_length_fobj_tuple = (umain_fobj_tuple[0], adaptive_length, umain_fobj_tuple[1])
@@ -1695,49 +1728,64 @@ if __name__=="__main__":
                 # General Algorithm for supporting with projection method
                 # 1) Search around while moving back and forth
                 # Return : idx_best, u_best, num_supporting_best
-                search_resolution = 10
+                search_resolution = 15
                 num_search = 3            
-                idx_best = -1  
-                idx_best_stable = -1  
+                idx_best_x = -1
+                idx_best_y = -1  
+                idx_best_stable_x = -1
+                idx_best_stable_y = -1  
                 num_supporting_best = 3
                 stability_true_list = []
+                print("u_actual {}".format(u_actual))
                 for i in range(num_search*2+1):
-                    u_actual_search = [u_actual[0] + (-num_search + i)*search_resolution, u_actual[1] + (-num_search + i)*search_resolution, u_actual[2]]
-                    block_state_search = [u_actual_search[0], u_actual_search[1], w_block, h_block, u_actual_search[2]]
-                    pts_search = RotatePts(block_state_search, 'ground')
-                    pt_left = pts_search[3]
-                    pt_right = pts_search[0]
-                    # Project and get the projected points
-                    interval_num = 5
-                    pts_combine, pts_list_from_left_concatenate = ProjectionInterval(interval_num, pt_left, pt_right, env_local)
-                    com = [u_move[0]+w_block/2, u_move[1]+h_block/2]
-                    # Judge stability
-                    current_stability, num_supporting_necessary, pairs_for_supports = JudgeStability(pt_left, pt_right, com, pts_combine)
-                    print("current stability, num_supporting_necessary, pairs_for_supports : {} {} {}".format(current_stability, num_supporting_necessary, pairs_for_supports))
-                    # Choose the better one
-                    if current_stability == True:
-                        stability_true_list.append(i)
-                        if abs(i-num_search) <= abs(idx_best_stable-num_search): 
-                            u_best = u_actual_search    
-                            idx_best_stable = i 
-                            num_supporting_best = num_supporting_necessary
-                    else:   
-                        if not stability_true_list:
-                            if (num_supporting_necessary <= num_supporting_best) and (abs(i-num_search) <= abs(idx_best-num_search)):
-                                u_best = u_actual_search
-                                idx_best = i 
+                    for j in range(num_search):
+                        u_actual_search = [u_actual[0] + (-num_search + i)*search_resolution, u_actual[1] - j*search_resolution, u_actual[2]] # search only x-axis/y-axis (only plus)
+                        com = [u_actual_search[0]+w_block/2, u_actual_search[1]+h_block/2]
+                        current_stability, num_supporting_necessary, pairs_for_supports, violation_overlap = TestState4Support(u_actual_search, env_local, com)
+                        if violation_overlap == True:
+                            print("violate i,j / uactual_search:{},{} / {}".format(i,j, u_actual_search))
+                            continue
+                        print("uactual_search, current stability, num_supporting_necessary, pairs_for_supports : {} {} {} {}".format(u_actual_search, current_stability, num_supporting_necessary, pairs_for_supports))
+                        
+                        # Choose the better one
+                        if current_stability == True:
+                            stability_true_list.append(i)
+                            if abs(i-num_search)+abs(j) <= abs(idx_best_stable_x-num_search)+abs(idx_best_stable_y): 
+                                u_best = u_actual_search    
+                                idx_best_stable_x = i
+                                idx_best_stable_y = j 
                                 num_supporting_best = num_supporting_necessary
+                                pairs_for_supports_best = pairs_for_supports
+                        else:   
+                            if not stability_true_list:
+                                if (num_supporting_necessary == num_supporting_best):
+                                    if (abs(i-num_search)+abs(j) <= abs(idx_best_x-num_search)+abs(idx_best_y)):
+                                        u_best = u_actual_search
+                                        idx_best_x = i
+                                        idx_best_y = j 
+                                        num_supporting_best = num_supporting_necessary
+                                        pairs_for_supports_best = pairs_for_supports
+                                elif num_supporting_necessary < num_supporting_best:
+                                        u_best = u_actual_search
+                                        idx_best_x = i
+                                        idx_best_y = j 
+                                        num_supporting_best = num_supporting_necessary
+                                        pairs_for_supports_best = pairs_for_supports
+                        print("i : {}".format(i))
                 if not stability_true_list:
                     pass
                 else:
-                    idx_best = idx_best_stable
-                print("num_supporting_best {}".format(num_supporting_best))
+                    idx_best_x = idx_best_stable_x
+                    idx_best_y = idx_best_stable_y
+                print("num_supporting_best, u_best, pairs_best, idx_best_x, idx_best_y: {}, {}, {}, {}".format(num_supporting_best, u_best, pairs_for_supports_best,idx_best_x, idx_best_y))
+                
+
                 # Prioritize the remaining blocks
                 if num_supporting_best == 0:
                     pass
                 elif num_supporting_best == 1:     
                     # Pick out one pair   
-                    pair_for_supports = pairs_for_supports[0] # [p1,p2]
+                    pair_for_supports = pairs_for_supports_best[0] # [p1,p2]
                     # Get vertical_dist and compare     
                     d1 = GetVerticalDistancePt2Line(pair_for_supports[0], pt_left, pt_right)
                     d2 = GetVerticalDistancePt2Line(pair_for_supports[1], pt_left, pt_right)
@@ -1762,13 +1810,13 @@ if __name__=="__main__":
                     h_support = support_state[3]
                 else: # more than 2
                     # Pick out one pair
-                    pair_for_supports = pairs_for_supports[0]
+                    pair_for_supports = pairs_for_supports_best[0]
                     dist_min_left = GetVerticalDistancePt2Line(pair_for_supports[0], pt_left, pt_right)
                     pt_min_left = pair_for_supports[0]
                     dist_min_right = GetVerticalDistancePt2Line(pair_for_supports[1], pt_left, pt_right)
                     pt_min_right = pair_for_supports[1]
-                    idx_order_from_closest_to_farthest_left, gap_list_left = PrioritizeBlocks(dist_min, pt_min, num_movable, movable_ID, ID_dict, ID_state_matching)
-                    idx_order_from_closest_to_farthest_right, gap_list_right = PrioritizeBlocks(dist_min, pt_min, num_movable, movable_ID, ID_dict, ID_state_matching)
+                    idx_order_from_closest_to_farthest_left, gap_list_left = PrioritizeBlocks(dist_min_left, pt_min_left, num_movable, movable_ID, ID_dict, ID_state_matching)
+                    idx_order_from_closest_to_farthest_right, gap_list_right = PrioritizeBlocks(dist_min_right, pt_min_right, num_movable, movable_ID, ID_dict, ID_state_matching)
                     # Ground choice of pt_min_left and pt_min_right
                     _, _, grd_choice_left = GetydistPt2grd([pt_min_left[0], pt_min_left[1]-5], env_local) # to check which grd
                     _, _, grd_choice_right = GetydistPt2grd([pt_min_right[0], pt_min_right[1]-5], env_local)
