@@ -714,30 +714,6 @@ def ComputeSupportForces(mainblock_type, mainblock_desired_state, main_traj,  co
         p2 = [x2,y2]
     return p2
 
-def UpdateModelAfterFailure(guide_path_local, direction_end, block_type, block_state, s_ball_ini, u_pre, f_actual):
-    # Update the mainblock's state after observations
-    # Input : mainblock_type, previous_input, f_actual (x,y,dir) / env, xstart
-    # Output : next_input or new model parameter
-
-    # Model error term's update
-    model_paramter = 0
-    # ref : [x,y,dir]
-    ref = np.array((guide_path_local[-1][0],guide_path_local[-1][1], direction_end))
-    # y = (ball(5),ref(3),block type, block state)
-    y = (s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],s_ball_ini[4], ref[0],ref[1],ref[2], block_type, block_state)  
-
-    # Approximate Gradient descent 
-    alpha = 0.3    
-    jac = nd.Jacobian(fmodel)
-    a = jac(u_pre, *y)
-    b = a.T
-    unew = u_pre - alpha*(2*np.matmul(b,f_actual)-2*np.matmul(b,ref))    
-    return unew
-
-def UpdateCostWeights():
-    weights = [0,0,1]
-    return weights
-
 class Drawing:
     def __init__(self, xregion, yregion, xsize, ysize, s_grd_list, guide_path, guide_path_local, s_ball_ini):
         self.xregion = xregion
@@ -1457,6 +1433,7 @@ def TestState4Support(u_actual_search, env_local, com):
     pts_search = RotatePts(block_state_search, 'ground')
     # Check overlap with environment
     need_adjust = AdjustmentConstraint(block_state_search, env_local)
+    print("need_adjust and block_state_search, env_local : {}, {}, {}".format(need_adjust, block_state_search, env_local))
     if need_adjust == True:
         violation_overlap = True
         current_stability = []
@@ -1474,15 +1451,38 @@ def TestState4Support(u_actual_search, env_local, com):
         current_stability, num_supporting_necessary, pairs_for_supports = JudgeStability(pt_left, pt_right, com, pts_combine)
     return current_stability, num_supporting_necessary, pairs_for_supports, violation_overlap
 
+def UpdateModelAfterFailure(guide_path_local, direction_end, block_type, block_state, s_ball_ini, u_pre, f_actual):
+    # Update the mainblock's state after observations
+    # Input : mainblock_type, previous_input, f_actual (x,y,dir) / env, xstart
+    # Output : next_input or new model parameter
+
+    # Model error term's update
+    model_paramter = 0
+    # ref : [x,y,dir]
+    ref = np.array((guide_path_local[-1][0],guide_path_local[-1][1], direction_end))
+    # y = (ball(5),ref(3),block type, block state)
+    y = (s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],s_ball_ini[4], ref[0],ref[1],ref[2], block_type, block_state)  
+
+    # Approximate Gradient descent 
+    alpha = 0.3    
+    jac = nd.Jacobian(fmodel)
+    a = jac(u_pre, *y)
+    b = a.T
+    unew = u_pre - alpha*(2*np.matmul(b,f_actual)-2*np.matmul(b,ref))    
+    return unew
+
+def UpdateCostWeights():
+    weights = [0,0,1]
+    return weights
 
 if __name__=="__main__":
 
     # Test for a local region
-    level_select = 4
+    level_select = 2
     # 0) Prerequisite : guide path
-    # guide_path = [[20,135],[50,155],[110,150],[180,170],[230,185],[280,175],[310,185],[340,195],[400,200]]
+    guide_path = [[20,135],[50,155],[110,150],[180,170],[230,185],[280,175],[310,185],[340,195],[400,200]]
     #guide_path = [[450, 120], [443, 158], [411, 167], [379, 192], [350, 205], [315, 177], [276, 202], [241, 195], [204, 186], [166, 178], [135, 196], [104, 209], [78, 207], [61, 202], [34, 195]]
-    guide_path = [[75, 100], [99, 120], [120, 126], [142, 136], [178, 144], [220, 141], [230, 153], [266, 133], [290, 169], [331, 153], [338, 154], [383, 195], [424, 217], [440, 240], [439, 254], [419, 285]]
+    #guide_path = [[75, 100], [99, 120], [120, 126], [142, 136], [178, 144], [220, 141], [230, 153], [266, 133], [290, 169], [331, 153], [338, 154], [383, 195], [424, 217], [440, 240], [439, 254], [419, 285]]
     #guide_path = [[210, 100], [241, 119], [284, 139], [304, 129], [348, 137], [372, 144], [391, 151], [435, 153], [476, 167], [446, 210], [407, 223], [389, 227], [377, 260], [345, 276], [310, 274], [276, 263], [255, 283], [243, 287], [209, 294], [176, 288], [159, 292], [139, 293], [117, 300], [86, 302], [59, 292], [34, 285]]
     #guide_path = [[25, 100], [38, 119], [79, 132], [108, 154], [126, 142], [167, 137], [195, 134], [230, 147], [239, 150], [275, 154], [295, 179], [327, 202], [356, 212], [384, 222], [414, 234], [417, 253], [419, 275]]
     state_input = [] # decided ahead in previous local regions
@@ -1616,7 +1616,7 @@ if __name__=="__main__":
             w_block = block_state[2]
             h_block = block_state[3]
 
-            adaptive_length_resolution = 20
+            adaptive_length_resolution = 15
             adaptive_length_grid = range(0,int(xsize/3),adaptive_length_resolution)
             umain_length_fobj_tuple_list_extend = []
             f_obj_min = 10000000
@@ -1641,9 +1641,9 @@ if __name__=="__main__":
                 # 1) grid for u (x1 is fixed before)
                 # grid 
                 ref = (guide_path_local_update[-1][0],guide_path_local_update[-1][1], direction_end)
-                y = (s_ball_mid_temp[0],s_ball_mid_temp[1],s_ball_mid_temp[2],s_ball_mid_temp[3],s_ball_mid_temp[4], ref[0],ref[1],ref[2], block_type, block_state, env_local)
+                y = (s_ball_mid_temp[0],s_ball_mid_temp[1],s_ball_mid_temp[2],s_ball_mid_temp[3],s_ball_mid_temp[4], ref[0],ref[1],ref[2], block_type, block_state, s_grd_list)
                
-                u_optimal_temp, f_obj_min_temp, umain_fobj_tuple_list = FindOptimalInputGrid(guide_path_local_update, direction_end, block_type, block_state, s_ball_mid_temp, env_local)
+                u_optimal_temp, f_obj_min_temp, umain_fobj_tuple_list = FindOptimalInputGrid(guide_path_local_update, direction_end, block_type, block_state, s_ball_mid_temp, s_grd_list)
                 for umain_fobj_tuple in umain_fobj_tuple_list:
                     umain_length_fobj_tuple = (umain_fobj_tuple[0], adaptive_length, umain_fobj_tuple[1])
                     umain_length_fobj_tuple_list_extend.append(umain_length_fobj_tuple)
@@ -1677,50 +1677,50 @@ if __name__=="__main__":
 
             u_actual, vel_desired = ConvertUopt2Ureal(u_optimal, block_type, w_block, h_block, s_ball_mid)
             block_state_desired = [u_actual[0], u_actual[1], w_block, h_block, u_actual[2]]
-
-
+            u_move = u_actual
+            mainblock_desired_state = [u_move[0],u_move[1],w_block,h_block,u_move[2],vel_desired[0],vel_desired[1],vel_desired[2]]
             # 4)-2. Move the block to the point which is closest to the main block (only when the block is wood)
             if block_type[0:4] == "wood":
                 # move the block a little bit to closest block (about the both side vertex) + search around                 
-                u_move, pt_min_lr, dist_min_lr, grd_choice_lr = Move2ClosePt(u_actual, block_state, block_type, s_grd_list)
-                pt_min_left = pt_min_lr[0]
-                pt_min_right = pt_min_lr[1]
-                dist_min_left = dist_min_lr[0]
-                dist_min_right = dist_min_lr[1]
-                grd_choice_left = grd_choice_lr[0]
-                grd_choice_right = grd_choice_lr[1]
-                block_state_move = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
-                pts_move = RotatePts(block_state_move, 'ground')
-                pt_left = pts_move[3]
-                pt_right = pts_move[0]
+                # u_move, pt_min_lr, dist_min_lr, grd_choice_lr = Move2ClosePt(u_actual, block_state, block_type, s_grd_list)
+                # pt_min_left = pt_min_lr[0]
+                # pt_min_right = pt_min_lr[1]
+                # dist_min_left = dist_min_lr[0]
+                # dist_min_right = dist_min_lr[1]
+                # grd_choice_left = grd_choice_lr[0]
+                # grd_choice_right = grd_choice_lr[1]
+                # block_state_move = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
+                # pts_move = RotatePts(block_state_move, 'ground')
+                # pt_left = pts_move[3]
+                # pt_right = pts_move[0]
 
-                # Compare the distance with some sizes of block
-                # idx_order_from_closest_to_farthest : priority order
-                idx_order_from_closest_to_farthest_left, gap_list_left = PrioritizeBlocks(dist_min_left, pt_min_left, num_movable, movable_ID, ID_dict, ID_state_matching)
-                idx_order_from_closest_to_farthest_right, gap_list_right = PrioritizeBlocks(dist_min_right, pt_min_right, num_movable, movable_ID, ID_dict, ID_state_matching)
+                # # Compare the distance with some sizes of block
+                # # idx_order_from_closest_to_farthest : priority order
+                # idx_order_from_closest_to_farthest_left, gap_list_left = PrioritizeBlocks(dist_min_left, pt_min_left, num_movable, movable_ID, ID_dict, ID_state_matching)
+                # idx_order_from_closest_to_farthest_right, gap_list_right = PrioritizeBlocks(dist_min_right, pt_min_right, num_movable, movable_ID, ID_dict, ID_state_matching)
         
 
-                # 6) Decide the position of supporting blocks (main block can be a little moved to avoid overlapping)
-                # mainblock_desired_state(x,y,w,h,rot,vx,vy,w_rot)
-                mainblock_desired_state = [u_move[0],u_move[1],w_block,h_block,u_move[2],vel_desired[0],vel_desired[1],vel_desired[2]]
-                state_support_temp_left, u_move, env_local_temp, _ = DecideSupportingState(idx_order_from_closest_to_farthest_left, pt_min_left, dist_min_left, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
-                state_support_temp_right, u_move, env_local_temp, _ = DecideSupportingState(idx_order_from_closest_to_farthest_right, pt_min_right, dist_min_right, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                # # 6) Decide the position of supporting blocks (main block can be a little moved to avoid overlapping)
+                # # mainblock_desired_state(x,y,w,h,rot,vx,vy,w_rot)
+                # mainblock_desired_state = [u_move[0],u_move[1],w_block,h_block,u_move[2],vel_desired[0],vel_desired[1],vel_desired[2]]
+                # state_support_temp_left, u_move, env_local_temp, _ = DecideSupportingState(idx_order_from_closest_to_farthest_left, pt_min_left, dist_min_left, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                # state_support_temp_right, u_move, env_local_temp, _ = DecideSupportingState(idx_order_from_closest_to_farthest_right, pt_min_right, dist_min_right, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
                 
-                if not state_support_temp_left and not state_support_temp_right:
-                    pass
-                elif state_support_temp_right and not state_support_temp_left:
-                    x_support = state_support_temp_right[0]
-                    y_support = state_support_temp_right[1]
-                    w_support = state_support_temp_right[2]
-                    h_support = state_support_temp_right[3]
-                    theta_support = state_support_temp_right[4]
-                else:
-                    x_support = state_support_temp_left[0]
-                    y_support = state_support_temp_left[1]
-                    w_support = state_support_temp_left[2]
-                    h_support = state_support_temp_left[3]
-                    theta_support = state_support_temp_left[4]
-                print(state_support_temp_left, state_support_temp_right)
+                # if not state_support_temp_left and not state_support_temp_right:
+                #     pass
+                # elif state_support_temp_right and not state_support_temp_left:
+                #     x_support = state_support_temp_right[0]
+                #     y_support = state_support_temp_right[1]
+                #     w_support = state_support_temp_right[2]
+                #     h_support = state_support_temp_right[3]
+                #     theta_support = state_support_temp_right[4]
+                # else:
+                #     x_support = state_support_temp_left[0]
+                #     y_support = state_support_temp_left[1]
+                #     w_support = state_support_temp_left[2]
+                #     h_support = state_support_temp_left[3]
+                #     theta_support = state_support_temp_left[4]
+                # print(state_support_temp_left, state_support_temp_right)
 
 
 
@@ -1741,7 +1741,7 @@ if __name__=="__main__":
                     for j in range(num_search):
                         u_actual_search = [u_actual[0] + (-num_search + i)*search_resolution, u_actual[1] - j*search_resolution, u_actual[2]] # search only x-axis/y-axis (only plus)
                         com = [u_actual_search[0]+w_block/2, u_actual_search[1]+h_block/2]
-                        current_stability, num_supporting_necessary, pairs_for_supports, violation_overlap = TestState4Support(u_actual_search, env_local, com)
+                        current_stability, num_supporting_necessary, pairs_for_supports, violation_overlap = TestState4Support(u_actual_search, s_grd_list, com)
                         if violation_overlap == True:
                             print("violate i,j / uactual_search:{},{} / {}".format(i,j, u_actual_search))
                             continue
@@ -1779,7 +1779,9 @@ if __name__=="__main__":
                     idx_best_y = idx_best_stable_y
                 print("num_supporting_best, u_best, pairs_best, idx_best_x, idx_best_y: {}, {}, {}, {}".format(num_supporting_best, u_best, pairs_for_supports_best,idx_best_x, idx_best_y))
                 
-
+                pts_best = RotatePts([u_best[0],u_best[1],w_block, h_block, u_best[2]], 'ground')
+                pt_right = pts_best[0] 
+                pt_left = pts_best[3]
                 # Prioritize the remaining blocks
                 if num_supporting_best == 0:
                     pass
@@ -1798,10 +1800,10 @@ if __name__=="__main__":
                         pt_min = pair_for_supports[1]
                         idx_order_from_closest_to_farthest, gap_list = PrioritizeBlocks(dist_min, pt_min, num_movable, movable_ID, ID_dict, ID_state_matching)
                     # Ground choice of pt_min
-                    _, _, grd_choice = GetydistPt2grd([pt_min[0], pt_min[1]-5], env_local) # to check which grd
+                    _, _, grd_choice = GetydistPt2grd([pt_min[0], pt_min[1]-5], s_grd_list) # to check which grd
 
                     # Decide the state of support
-                    state_support_temp, u_move, env_local_temp, support_idx = DecideSupportingState(idx_order_from_closest_to_farthest, pt_min, dist_min, grd_choice, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                    state_support_temp, u_move, env_local_temp, support_idx = DecideSupportingState(idx_order_from_closest_to_farthest, pt_min, dist_min, grd_choice, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, s_grd_list)
                     # Matching block
                     support_id = movable_ID[support_idx]
                     support_type = ID_dict[support_id] # 'metalrectangle'
@@ -1917,6 +1919,7 @@ if __name__=="__main__":
                 err_main = 50000
                 flag_supportings = True
                 count_4th_loop = 0
+                u_move = u_best
                 while bool_success == False and error_min > err_criterion_ball and err_main > err_main_criterion and flag_supportings and count_4th_loop <2 and  block_type[0:4] == "wood":
                     count_4th_loop += 1
                     print("iteration 1st loop, 2nd loop, 3rd loop, 4th loop : {0}, {1}, {2}, {3}".format(count_1st_loop, count_2nd_loop, count_3rd_loop, count_4th_loop))
