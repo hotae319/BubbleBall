@@ -84,6 +84,7 @@ def Ball2Circle(ball, r, x, y, vx, vy, w, v_thres = 1):
 
 def Ball2CircleValue(xball, yball, vxball, vyball, rball, r, x, y, vx, vy, w, v_thres = 1):
     vt = vxball*(y-yball)/(rball+r) - vyball*(x-xball)/(rball+r)
+    # v : vel of Circle
     v = vy*(x-xball)/(rball+r)-vx*(y-yball)/(rball+r)
     sin_theta = (y-yball)/(rball+r)
     cos_theta = (x-xball)/(rball+r)
@@ -196,6 +197,22 @@ def BallinEnvValue(xball, yball, vxball, vyball, rball, x, y, w, h, theta, xregi
 
     return state3, state2, state1
 
+    #6) Ball with speedupr
+def Ball2PowerupValue(xball, yball, vxball, vyball, rball, x, y, power_type):
+    r_powerup = 25
+    m = 4/3*pi*15**3*0.2
+    if power_type == "speedupr":
+        if (x+r_powerup-xball-rball)**2+(y+r_powerup-yball-rball)**2 <= (r_powerup+rball)**2:
+            vxball += 100
+        else:
+            vxball += 0
+    elif power_type == "speedupl":
+        if (x+r_powerup-xball-rball)**2+(y+r_powerup-yball-rball)**2 <= (r_powerup+rball)**2:
+            vxball -= 100
+        else:
+            vxball -= 0
+    ball = [xball,yball,vxball,vyball]
+    return ball
 
 # B) Blocks
 # 1) 1 point to line (pivot point : px, py)

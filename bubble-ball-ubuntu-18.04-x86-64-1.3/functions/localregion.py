@@ -22,13 +22,13 @@ if __name__ == "__main__":
     from planning_algo.utils import GetIntersectPt, CheckInside, RotatePts, LineFrom2pts, LineInequality, GetDistancePt2Line, GetLinesFromBlock, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
     from parsing_movableobjects_levels import parsing_objects, run_simulation, logging_trajectory
     from physics.obj_class import Ball, metalBlock, woodBlock, powerUps
-    from physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue
+    from physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue, Ball2PowerupValue
     from physics.common.const import g, dt
 else:
     from . planning_algo.utils import GetIntersectPt, CheckInside, RotatePts, LineFrom2pts, LineInequality, GetDistancePt2Line, GetLinesFromBlock, CheckInsideInequality, CheckIntersectInequality, CheckIntersectPolygon, LineFromState, GetDistancePt2Block, GetDistanceBlock2Block, GetFootPerpendicular, GetFootVertical2block
     from . parsing_movableobjects_levels import parsing_objects, run_simulation, logging_trajectory
     from . physics.obj_class import Ball, metalBlock, woodBlock, powerUps
-    from . physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue
+    from . physics.simple_models import Ball2LineValue, Ball2CircleValue, BallinAirValue, BallinEnvValue, Ball2PowerupValue
     from . physics.common.const import g, dt
 
 
@@ -117,6 +117,10 @@ def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list
 def SortedTrajInLocal(ball_traj, local_region):
     # local_region [x_local_max, y_local_max, xregion, yregion]
     # ball_traj = [[vx,vy,w,x,y,rot],...]
+    x_local_max = local_region[0]
+    y_local_max = local_region[1]
+    xregion = local_region[2]
+    yregion = local_region[3]
     traj_sorted = []
     idx_sorted = []
     for i in range(len(ball_traj)):
@@ -190,6 +194,8 @@ def fobj(x,*y):
     # y[8] : block type, y[9] : block state [x,y,w,h,rot]
     # y[10] : env_local [[x,y,w,h,rot],[x,y,w,h,rot],...]
 
+    # TODO : we have to add y[11] about pre-set and update the coefficient of restitituion and friction
+
     # tracking error (ref = [x,y,dir])
     ref = [y[5],y[6],y[7]]  
 
@@ -203,13 +209,26 @@ def fobj(x,*y):
         # 2) circle
         # x[0] = x, x[1] = y, x[2] = vx, x[3] = vy, x[4] = w
         # r is given as y[9][2]/2
+
+        # x_{k+N} = f_s(x_k, u_k)
         state_ball_collision = Ball2CircleValue(y[0],y[1],y[2],y[3],y[4],y[9][2]/2,x[0],x[1],x[2],x[3],x[4])
+        # x_{k+1} = f_env(x_k, z) 
         x_distance = abs(ref[0]-y[0])
         y_distance = abs(ref[1]-y[1])
         state_ball = BallinAirValue(state_ball_collision[0],state_ball_collision[1],state_ball_collision[2],state_ball_collision[3],x_distance,y_distance)    
     elif y[8] in ("metalrectangle" , "woodrectangle"):
         # if we have to consider x1 at the same time
         state_ball, _ = Ball2LineValue(y[0],y[1],y[2],y[3],y[4],x[0],x[1],x[2],x[3],x[4])
+    elif y[8] in ("speedupr", "speedupl"):
+        # x[0] = x, x[1] = y, x[2] = rot
+        # x_{k+N} = f_s(x_k, u_k)
+        state_ball_power = Ball2PowerupValue(y[0],y[1],y[2],y[3],y[4], x[0], x[1], y[8])
+        # x_{k+1} = f_env(x_k, z) 
+        x_distance = abs(ref[0]-y[0])
+        y_distance = abs(ref[1]-y[1])
+        state_ball = BallinAirValue(state_ball_power[0],state_ball_power[1],
+            state_ball_power[2],state_ball_power[3],x_distance,y_distance)
+
     # error tracking cost
     error,_ = GetError(ref, state_ball)
     # if abs(state_ball[2]) <0.01: # if ball.vx is too low
@@ -363,6 +382,9 @@ def ConvertUopt2Ureal(u_input, block_type, w_block, h_block, s_ball_ini):
         l = u_input[0]     
         theta = (u_input[1]+45)/180*pi
         u_actual = [xball-(w_block*sqrt(2)-l)*cos(theta), yball+ rball*2, theta]
+    elif block_type in ("speedupr", "speedupl"):
+        u_actual = u_input
+        vel_desired = [0, 0, 0]
     return u_actual, vel_desired
 
 
@@ -479,6 +501,9 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
     # But, we want to minimize the intervention of environment.
     # Input : guide_path_local, block_type, block_state[x,y,w,h,rot], s_ball_ini (x,y,vx,vy,r)
     # Output : optimal inputs to minize the tracking error based on the simple model
+
+    # TODO : If we recieve update of models(e, mu) and pre-set, we have to apply to f_obj
+
     xball = s_ball_ini[0]
     yball = s_ball_ini[1]
     vxball = s_ball_ini[2]
@@ -492,7 +517,8 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
     # Given parameters
 
     # y = (ball(5),ref(3),block type, block state)
-    y = (s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],s_ball_ini[4], ref[0],ref[1],ref[2], block_type, block_state, env_local)        
+    y = (s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],s_ball_ini[4], 
+        ref[0],ref[1],ref[2], block_type, block_state, env_local)        
     if block_type == "metalrectangle" or block_type == "woodrectangle":
         # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w            
         # bound : -width < l < width, -90<theta<90, l*theta >0
@@ -514,7 +540,7 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
                     # Check feasibility
                     u_actual, vel_desired = ConvertUopt2Ureal(u_input, block_type, w_main, h_main, s_ball_ini)
                     main_state = [u_actual[0], u_actual[1], w_main, h_main, u_actual[2]]
-                    need_adjust = AdjustmentConstraint(main_state, env_local)
+                    need_adjust = AdjustmentConstraint(main_state, block_type, env_local)
                     com = [u_actual[0]+w_main/2, u_actual[1]+h_main/2]
                     # If feasible, compute objective function / store stability list
                     if need_adjust == False:
@@ -537,6 +563,58 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
                         f_obj_value_min = f_obj_value_current
                         u_input_min = u_input
 
+    elif block_type == "metalcircle" or block_type == "woodcircle":
+        # x[0] = x, x[1] = y, x[2] = vx, x[3] = vy. x[4] = w
+        # But, x = x_ball_center + (r+R)sin(phi) - R, y = y_ball_center + (r+R)cos(phi) - R
+        # The dist between (x + w_block/2, y + h_block/2) and the center of the ball == r+R
+        # y[9] = block_state[x,y,w,h,rot]
+        phi_resolution = 10 #deg        
+        f_obj_value_min = 10000000
+        u_input_min = [s_ball_ini[0]+s_ball_ini[4]-w_main/2, s_ball_ini[1]+s_ball_ini[4]*2, 0, 0, 0] # the line between two centers is vertical
+        f_obj_list = []
+        u_input_list = []
+        u_fobj_tuple_list = []
+        r = s_ball_ini[4]
+        R = w_main/2
+
+        # grid of phi        
+        phi_grid = range(-50, 80, phi_resolution) # usually place the circle below the ball                
+        for phi_cand in phi_grid:  
+            u_input = [s_ball_ini[0]+s_ball_ini[4]+(R+r)*sin(phi_cand/180*pi)-R,s_ball_ini[1]+s_ball_ini[4]+(R+r)*cos(phi_cand/180*pi)-R,0,0,0] 
+            if block_type == "woodcircle":
+                # Check feasibility
+                u_actual, vel_desired = ConvertUopt2Ureal(u_input, block_type, w_main, h_main, s_ball_ini)
+                main_state = [u_actual[0], u_actual[1], w_main, h_main, u_actual[2]]
+                need_adjust = AdjustmentConstraint(main_state, block_type, env_local)
+                com = [u_actual[0]+w_main/2, u_actual[1]+h_main/2]
+                # If feasible, compute objective function / store stability list
+                if need_adjust == False:
+                    #current_stability, num_supporting_necessary, pairs_for_supports = GetBestState4Support(u_actual, env_local, com)
+                    f_obj_value_current = fobj(u_input,*y)   
+                    uf_tuple = (u_input, f_obj_value_current)
+                    u_fobj_tuple_list.append(uf_tuple)                 
+                    # f_obj_list.append(f_obj_value_current)
+                    # u_input_list.append(u_input)
+                    if f_obj_value_current <= f_obj_value_min:
+                        f_obj_value_min = f_obj_value_current
+                        u_input_min = u_input
+            else:
+                f_obj_value_current = fobj(u_input,*y)   
+                uf_tuple = (u_input, f_obj_value_current)
+                u_fobj_tuple_list.append(uf_tuple)                 
+                # f_obj_list.append(f_obj_value_current)
+                # u_input_list.append(u_input)
+                if f_obj_value_current <= f_obj_value_min:
+                    f_obj_value_min = f_obj_value_current
+                    u_input_min = u_input
+    elif block_type == "speedupr" or block_type == "speedupl":                
+        u_fobj_tuple_list = []    
+        u_input = [xball, yball, 0]
+        f_obj_value_current = fobj(u_input,*y)   
+        uf_tuple = (u_input, f_obj_value_current)
+        u_fobj_tuple_list.append(uf_tuple)          
+        f_obj_value_min = f_obj_value_current
+        u_input_min = u_input
     else:
         f_obj_value_min = 10000000
         u_input_min = 0
@@ -782,12 +860,22 @@ class Drawing:
             self.ax1.add_patch(self.obj[-1]) 
             self.ax1.plot()
         elif obj.__class__.__name__=="metalBlock":
-            ts = self.ax1.transData
-            tr = trans.Affine2D().rotate_deg_around(obj.x+obj.w/2,obj.y+obj.h/2, obj.rot)
-            t = tr + ts # tr + ts (order is important)
-            self.obj.append(patches.Rectangle((obj.x,obj.y),obj.w,obj.h, edgecolor='gray', facecolor="gray", transform = t, alpha = alpha_value))
+            if obj.block_type == "metalrectangle":
+                ts = self.ax1.transData
+                tr = trans.Affine2D().rotate_deg_around(obj.x+obj.w/2,obj.y+obj.h/2, obj.rot)
+                t = tr + ts # tr + ts (order is important)
+                self.obj.append(patches.Rectangle((obj.x,obj.y),obj.w,obj.h, edgecolor='gray', facecolor="gray", transform = t, alpha = alpha_value))
+                self.ax1.add_patch(self.obj[-1]) 
+                self.ax1.plot()
+            elif obj.block_type == "metalcircle":
+                self.obj.append(patches.Circle((obj.x+obj.w/2,obj.y+obj.h/2),obj.w/2, edgecolor='gray', facecolor="gray", alpha = alpha_value))
+                self.ax1.add_patch(self.obj[-1]) 
+                self.ax1.plot()
+        elif obj.__class__.__name__=="powerUps":
+            self.obj.append(patches.Circle((obj.x+obj.size/2,obj.y+obj.size/2),obj.size/2, edgecolor='magenta', facecolor="white", alpha = alpha_value))
             self.ax1.add_patch(self.obj[-1]) 
             self.ax1.plot()
+
         return self.obj
     def eraseobject(self):
         for i in range(len(self.obj)):
@@ -869,19 +957,32 @@ def CheckOverlap(state1, state2):
             bool_overlap == True
     return bool_overlap, intersect_pair
 
-def AdjustmentConstraint(main_state, env_local, support_state = []):
+def CheckOverlapCircle(state_cir, state):
+    pts = RotatePts(state, 'rectangle')
+    return 0
+
+def AdjustmentConstraint(main_state, main_type, env_local, support_state = []):
     # Check violation
     need_adjust = False
-    if not support_state:
-        pass
-    else:
-        b_overlap_support, intersect_pair_support = CheckOverlap(main_state, support_state)
-        if b_overlap_support:
-            need_adjust = True
-    for env in env_local:
-        b_overlap_env, intersect_pair_env = CheckOverlap(main_state, env)
-        if b_overlap_env:
-            need_adjust = True
+    if main_type == 'metalrectangle' or 'woodrectangle' or 'ground':        
+        if not support_state:
+            pass
+        else:
+            b_overlap_support, intersect_pair_support = CheckOverlap(main_state, support_state)
+            if b_overlap_support:
+                need_adjust = True
+        for env in env_local:
+            b_overlap_env, intersect_pair_env = CheckOverlap(main_state, env)
+            if b_overlap_env:
+                need_adjust = True
+    elif main_type == 'metalcircle' or 'woodcircle':
+        center = [main_state[0]+main_state[3]/2, main_state[1]+main_state[3]/2]
+        for env_element in env_local:
+            dist_min, _ = GetDistancePt2Block(center, env_element, 'ground')
+            if dist_min < main_state[3]/2:
+                # overlap
+                need_adjust = True
+                break
     return need_adjust
 
 def GetydistPt2grd(pt, ground_below):
@@ -1432,7 +1533,7 @@ def TestState4Support(u_actual_search, env_local, com):
     block_state_search = [u_actual_search[0], u_actual_search[1], w_block, h_block, u_actual_search[2]]
     pts_search = RotatePts(block_state_search, 'ground')
     # Check overlap with environment
-    need_adjust = AdjustmentConstraint(block_state_search, env_local)
+    need_adjust = AdjustmentConstraint(block_state_search, 'woodrectangle', env_local)
     print("need_adjust and block_state_search, env_local : {}, {}, {}".format(need_adjust, block_state_search, env_local))
     if need_adjust == True:
         violation_overlap = True
@@ -1475,19 +1576,720 @@ def UpdateCostWeights():
     weights = [0,0,1]
     return weights
 
+def LocalRegion(guide_path, level_select, state_input):
+    # 1) Predict the ball's traj, load a traj. from a log file
+    id_grd, s_grd_list, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
+    traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", level_select)       
+    id_ball = id_total[0]
+    s_ball = s_total[0] # [x,y,w,h,rot], we use only w and h here
+    # check the order of the ID in the ID_list
+    ball_idx = 0
+    while id_ball != ID_list[ball_idx] and ball_idx < len(ID_list):
+        ball_idx = ball_idx+1
+    ball_traj_init = traj_list[ball_idx] # [vx,vy,wrot,x,y,theta] 6 by N
+    
+    # 2) Choose a local region and cut-off the guide path locally
+    x_predicted_traj = [ball_traj_init[j][3] for j in range(len(ball_traj_init))]
+    y_predicted_traj = [ball_traj_init[j][4] for j in range(len(ball_traj_init))]
+
+    guide_path_local, direction_end, x_local_max, y_local_max, idx_pick_start, idx_pick_end = SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list)
+    xregion = min(guide_path_local[0][0],guide_path_local[-1][0], x_predicted_traj[idx_pick_start], x_predicted_traj[idx_pick_end])
+    yregion = min(guide_path_local[0][1],guide_path_local[-1][1], y_predicted_traj[idx_pick_start], y_predicted_traj[idx_pick_end])
+    #xregion = min(x_predicted_traj[idx_pick_start], x_predicted_traj[idx_pick_end])
+    #yregion = min(y_predicted_traj[idx_pick_start], y_predicted_traj[idx_pick_end])
+    xsize = x_local_max-xregion
+    ysize = y_local_max-yregion
+    local_region = [x_local_max, y_local_max, xregion, yregion]
+    print("local_region {}".format(local_region))
+    # s_ball_ini = [x,y,vx,vy,r] : so we have to change the order because log file has vx,vy first
+    s_ball_ini = [ball_traj_init[idx_pick_start][3],ball_traj_init[idx_pick_start][4],ball_traj_init[idx_pick_start][0],ball_traj_init[idx_pick_start][1],15]
+    # sort out the grounds' states from the total s_grd_list
+    env_local = SortoutEnv(x_local_max, y_local_max, xregion, yregion, s_grd_list)
+    # get the types and states of envs
+    env_left = [500,0,0,0,0]
+    env_right = [0,0,0,0,0]
+    for env_element in env_local:
+        if env_element[0] < env_left[0]:
+            env_left = env_element
+    for env_element in env_local:
+        if env_element[0] > env_right[0]:
+            env_right = env_element
+    if s_ball_ini[2] >= 0: # go to the right
+        env_type_pre = "air"
+        env_state_pre = env_left
+        env_type_post = "air"
+        env_state_post = env_right
+    else:
+        env_type_pre = "air"
+        env_state_pre = env_right
+        env_type_post = "air"
+        env_state_post = env_left
+    print("envlocal:{}".format(env_local))
+    print(env_left, env_right)
+
+    display = Drawing(xregion, yregion, xsize, ysize, s_grd_list, guide_path, guide_path_local, s_ball_ini)
+    display.drawlocalregion()
+    plt.show(block=False)
+    plt.pause(2)    
+
+    '''
+    ----------------------------------------------------------------------------------------------
+    This is the start of the loop for a local region (the largest loop for picking a new main block)
+    ** 1 st loop
+    ----------------------------------------------------------------------------------------------
+    '''
+    count_1st_loop = 0
+    error_min = 50000
+    err_criterion_ball = 5000
+    # for erasing figure
+    obj_main_pre = []
+    obj_support_pre = []
+    # Remove the IDs already used from the movable ID list
+    id_already_used = []
+    for element_input in state_input:
+        # element_input : [id, x, y, rot]
+        id_already_used.append(element_input[0])
+        movable_ID.remove(element_input[0])
+
+    # While the local region fails, do a loop
+    num_movable = len(movable_ID)
+    # random
+    random.shuffle(movable_ID)
+    pick_main_idx = 0
+    while  bool_success == False and error_min > err_criterion_ball and count_1st_loop < num_movable:
+        count_1st_loop += 1
+        if count_1st_loop != 1:
+            pick_main_idx += 1
+        else:
+            pass
+    
+        # 3) Pick a main block / we can add some priorities    
+        input_id = movable_ID[pick_main_idx]
+        block_type = ID_dict[input_id] # 'metalrectangle'
+        block_state = ID_state_matching[input_id] # [x,y,w,h,rot]
+
+        print("guide_path_local {}".format(guide_path_local))
+
+        '''
+        -------------------------------------------------------
+        Small loop for solving optmization problem repeatedly
+        ** 2nd, 3rd loop
+        -------------------------------------------------------
+        '''
+        count_2nd_loop = 0
+        #unew = UpdateModelAfterFailure(guide_path_local, direction_end, block_type, block_state, s_ball_ini, u_optimal, f_actual)
+
+        '''
+        -------------------------------------------------------
+        Small loop for solving optmization problem repeatedly with adaptive weights
+        ** 3rd loop
+        -------------------------------------------------------
+        '''
+          
+        count_3rd_loop = 0
+        traj_sorted_init, idx_sorted = SortedTrajInLocal(ball_traj_init, local_region)
+        #print("traj_sorted_init {}".format(traj_sorted_init))
+
+        # 4) Solve the optimization problem to obtain the required state of the main block
+        while bool_success == False and error_min > err_criterion_ball and count_3rd_loop < 2:
+            count_3rd_loop += 1
+            # 4)-0. Adpat the local region size after observations (reduce the size)
+            # update guide path local
+            if count_3rd_loop != 1:
+                guide_path_local_update = [guide_path_local[i] for i in range(len(guide_path_local)-count_3rd_loop+1)]
+                #del guide_path_local[-1]
+                #print(guide_path_local)
+                #u_optimal = FindOptimalInput(guide_path_local, direction_end, block_type, block_state, s_ball_ini, env_local)
+                display.updatelocalregion(guide_path_local_update)                        
+                adaptive_length = 25
+            else:
+                # first iteration
+                guide_path_local_update = [guide_path_local[i] for i in range(len(guide_path_local))] # to avoid deep copy
+                adaptive_length = 25       
+
+            # 4)-1. get the main block's optimal state with fixed x1 (we will update this later)
+            w_block = block_state[2]
+            h_block = block_state[3]
+
+            adaptive_length_resolution = 15
+            adaptive_length_grid = range(0,int(xsize/3),adaptive_length_resolution)
+            umain_length_fobj_tuple_list_extend = []
+            f_obj_min = 10000000
+
+            print("time start : {}".format(time.time()))
+            #print(traj_sorted_init)
+            for adaptive_length in adaptive_length_grid:
+                if abs(s_ball_ini[2]) < 0.5:
+                    # vx = 0, fall downward
+                    state_ball = MakeF1withTraj(traj_sorted_init, adaptive_length)
+                    # state_ball = BallinAirValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],0,adaptive_length)
+                else:
+                    state_ball = MakeF1withTraj(traj_sorted_init, adaptive_length)
+                    # state_ball = BallinAirValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],adaptive_length)
+                
+                # Update s_ball_ini for main block
+                s_ball_mid_temp = [state_ball[0], state_ball[1], state_ball[2], state_ball[3], s_ball_ini[4]]
+                print("state ball {}".format(state_ball))
+                #display.drawball(state_ball)
+
+                # Find the optimal solution for a main block
+                # 1) grid for u (x1 is fixed before)
+                # grid 
+                ref = (guide_path_local_update[-1][0],guide_path_local_update[-1][1], direction_end)
+                y = (s_ball_mid_temp[0],s_ball_mid_temp[1],s_ball_mid_temp[2],s_ball_mid_temp[3],s_ball_mid_temp[4], 
+                    ref[0],ref[1],ref[2], block_type, block_state, s_grd_list)
+               
+                # TODO : add a model update part and a pre-set update part
+                # TODO : we can choose the best type which has the best u_optimal_temp --> that could be a main block here 
+                u_optimal_temp, f_obj_min_temp, umain_fobj_tuple_list = FindOptimalInputGrid(guide_path_local_update, direction_end, block_type, block_state, s_ball_mid_temp, s_grd_list)
+                for umain_fobj_tuple in umain_fobj_tuple_list:
+                    umain_length_fobj_tuple = (umain_fobj_tuple[0], adaptive_length, umain_fobj_tuple[1])
+                    umain_length_fobj_tuple_list_extend.append(umain_length_fobj_tuple)
+                # Choose the best one from adaptive_length_grid
+                if f_obj_min_temp <= f_obj_min:
+                    f_obj_min = f_obj_min_temp
+                    u_optimal = u_optimal_temp
+                    s_ball_mid = s_ball_mid_temp
+
+            # sort the elements in an asending order
+            def get_fobj(elem):
+                return elem[2]
+            umain_length_fobj_tuple_list_extend.sort(key=get_fobj)
+            print("time end : {}".format(time.time()))
+            print(umain_length_fobj_tuple_list_extend)
+
+            #u_optimal = FindOptimalInput(guide_path_local_update, direction_end, block_type, block_state, s_ball_ini, env_local)
+            #u_optimal = FindOptimalInputConstrained(guide_path_local_update, direction_end, block_type, block_state, s_ball_ini, env_type_pre, env_state_pre, env_type_post, env_state_post, env_local, local_region)
+            
+
+            # after f1, need to get the state just before entering fu
+            # We can use the actual data and get the y value at x(u_optimal[5])
+            # if env_type_pre == "ground":
+            #     state_ball, _ = Ball2LineValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],s_ball_ini[4], u_optimal[5]/cos(env_state_pre[4]/180*pi), env_state_pre[4], 0, 0, 0)
+            # else: #elif y[10] == "air":
+            #     if abs(s_ball_ini[2]) < 0.5:
+            #         state_ball = BallinAirValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],0,u_optimal[5])
+            #     else:
+            #         state_ball = BallinAirValue(s_ball_ini[0],s_ball_ini[1],s_ball_ini[2],s_ball_ini[3],u_optimal[5])
+            # s_ball_mid = [state_ball[0], state_ball[1], state_ball[2], state_ball[3], s_ball_ini[4]]
+            # u_actual, vel_desired = ConvertUopt2Ureal(u_optimal, block_type, w_block, h_block, s_ball_mid)
+
+            u_actual, vel_desired = ConvertUopt2Ureal(u_optimal, block_type, w_block, h_block, s_ball_mid)
+            block_state_desired = [u_actual[0], u_actual[1], w_block, h_block, u_actual[2]]
+            u_move = u_actual
+            mainblock_desired_state = [u_move[0],u_move[1],w_block,h_block,u_move[2],vel_desired[0],vel_desired[1],vel_desired[2]]
+            # 4)-2. Move the block to the point which is closest to the main block (only when the block is wood)
+            if block_type[0:4] == "wood":
+                # move the block a little bit to closest block (about the both side vertex) + search around                 
+                # u_move, pt_min_lr, dist_min_lr, grd_choice_lr = Move2ClosePt(u_actual, block_state, block_type, s_grd_list)
+                # pt_min_left = pt_min_lr[0]
+                # pt_min_right = pt_min_lr[1]
+                # dist_min_left = dist_min_lr[0]
+                # dist_min_right = dist_min_lr[1]
+                # grd_choice_left = grd_choice_lr[0]
+                # grd_choice_right = grd_choice_lr[1]
+                # block_state_move = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
+                # pts_move = RotatePts(block_state_move, 'ground')
+                # pt_left = pts_move[3]
+                # pt_right = pts_move[0]
+
+                # # Compare the distance with some sizes of block
+                # # idx_order_from_closest_to_farthest : priority order
+                # idx_order_from_closest_to_farthest_left, gap_list_left = PrioritizeBlocks(dist_min_left, pt_min_left, num_movable, movable_ID, ID_dict, ID_state_matching)
+                # idx_order_from_closest_to_farthest_right, gap_list_right = PrioritizeBlocks(dist_min_right, pt_min_right, num_movable, movable_ID, ID_dict, ID_state_matching)
+        
+
+                # # 6) Decide the position of supporting blocks (main block can be a little moved to avoid overlapping)
+                # # mainblock_desired_state(x,y,w,h,rot,vx,vy,w_rot)
+                # mainblock_desired_state = [u_move[0],u_move[1],w_block,h_block,u_move[2],vel_desired[0],vel_desired[1],vel_desired[2]]
+                # state_support_temp_left, u_move, env_local_temp, _ = DecideSupportingState(idx_order_from_closest_to_farthest_left, pt_min_left, dist_min_left, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                # state_support_temp_right, u_move, env_local_temp, _ = DecideSupportingState(idx_order_from_closest_to_farthest_right, pt_min_right, dist_min_right, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                
+                # if not state_support_temp_left and not state_support_temp_right:
+                #     pass
+                # elif state_support_temp_right and not state_support_temp_left:
+                #     x_support = state_support_temp_right[0]
+                #     y_support = state_support_temp_right[1]
+                #     w_support = state_support_temp_right[2]
+                #     h_support = state_support_temp_right[3]
+                #     theta_support = state_support_temp_right[4]
+                # else:
+                #     x_support = state_support_temp_left[0]
+                #     y_support = state_support_temp_left[1]
+                #     w_support = state_support_temp_left[2]
+                #     h_support = state_support_temp_left[3]
+                #     theta_support = state_support_temp_left[4]
+                # print(state_support_temp_left, state_support_temp_right)
+
+
+
+
+                # General Algorithm for supporting with projection method
+                # 1) Search around while moving back and forth
+                # Return : idx_best, u_best, num_supporting_best
+                search_resolution = 15
+                num_search = 3            
+                idx_best_x = -1
+                idx_best_y = -1  
+                idx_best_stable_x = -1
+                idx_best_stable_y = -1  
+                num_supporting_best = 3
+                stability_true_list = []
+                print("u_actual {}".format(u_actual))
+                for i in range(num_search*2+1):
+                    for j in range(num_search):
+                        u_actual_search = [u_actual[0] + (-num_search + i)*search_resolution, u_actual[1] - j*search_resolution, u_actual[2]] # search only x-axis/y-axis (only plus)
+                        com = [u_actual_search[0]+w_block/2, u_actual_search[1]+h_block/2]
+                        current_stability, num_supporting_necessary, pairs_for_supports, violation_overlap = TestState4Support(u_actual_search, s_grd_list, com)
+                        if violation_overlap == True:
+                            print("violate i,j / uactual_search:{},{} / {}".format(i,j, u_actual_search))
+                            continue
+                        print("uactual_search, current stability, num_supporting_necessary, pairs_for_supports : {} {} {} {}".format(u_actual_search, current_stability, num_supporting_necessary, pairs_for_supports))
+                        
+                        # Choose the better one
+                        if current_stability == True:
+                            stability_true_list.append(i)
+                            if abs(i-num_search)+abs(j) <= abs(idx_best_stable_x-num_search)+abs(idx_best_stable_y): 
+                                u_best = u_actual_search    
+                                idx_best_stable_x = i
+                                idx_best_stable_y = j 
+                                num_supporting_best = num_supporting_necessary
+                                pairs_for_supports_best = pairs_for_supports
+                        else:   
+                            if not stability_true_list:
+                                if (num_supporting_necessary == num_supporting_best):
+                                    if (abs(i-num_search)+abs(j) <= abs(idx_best_x-num_search)+abs(idx_best_y)):
+                                        u_best = u_actual_search
+                                        idx_best_x = i
+                                        idx_best_y = j 
+                                        num_supporting_best = num_supporting_necessary
+                                        pairs_for_supports_best = pairs_for_supports
+                                elif num_supporting_necessary < num_supporting_best:
+                                        u_best = u_actual_search
+                                        idx_best_x = i
+                                        idx_best_y = j 
+                                        num_supporting_best = num_supporting_necessary
+                                        pairs_for_supports_best = pairs_for_supports
+                        print("i : {}".format(i))
+                if not stability_true_list:
+                    pass
+                else:
+                    idx_best_x = idx_best_stable_x
+                    idx_best_y = idx_best_stable_y
+                print("num_supporting_best, u_best, pairs_best, idx_best_x, idx_best_y: {}, {}, {}, {}".format(num_supporting_best, u_best, pairs_for_supports_best,idx_best_x, idx_best_y))
+                
+                pts_best = RotatePts([u_best[0],u_best[1],w_block, h_block, u_best[2]], 'ground')
+                pt_right = pts_best[0] 
+                pt_left = pts_best[3]
+                # Prioritize the remaining blocks
+                if num_supporting_best == 0:
+                    pass
+                elif num_supporting_best == 1:     
+                    # Pick out one pair   
+                    pair_for_supports = pairs_for_supports_best[0] # [p1,p2]
+                    # Get vertical_dist and compare     
+                    d1 = GetVerticalDistancePt2Line(pair_for_supports[0], pt_left, pt_right)
+                    d2 = GetVerticalDistancePt2Line(pair_for_supports[1], pt_left, pt_right)
+                    if d1 > d2:
+                        dist_min = d1
+                        pt_min = pair_for_supports[0]
+                        idx_order_from_closest_to_farthest, gap_list = PrioritizeBlocks(dist_min, pt_min, num_movable, movable_ID, ID_dict, ID_state_matching)
+                    else:
+                        dist_min = d2
+                        pt_min = pair_for_supports[1]
+                        idx_order_from_closest_to_farthest, gap_list = PrioritizeBlocks(dist_min, pt_min, num_movable, movable_ID, ID_dict, ID_state_matching)
+                    # Ground choice of pt_min
+                    _, _, grd_choice = GetydistPt2grd([pt_min[0], pt_min[1]-5], s_grd_list) # to check which grd
+
+                    # Decide the state of support
+                    state_support_temp, u_move, env_local_temp, support_idx = DecideSupportingState(idx_order_from_closest_to_farthest, pt_min, dist_min, grd_choice, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, s_grd_list)
+                    # Matching block
+                    support_id = movable_ID[support_idx]
+                    support_type = ID_dict[support_id] # 'metalrectangle'
+                    support_state = ID_state_matching[support_id] # [x,y,w,h,rot]
+                    w_support = support_state[2]
+                    h_support = support_state[3]
+                else: # more than 2
+                    # Pick out one pair
+                    pair_for_supports = pairs_for_supports_best[0]
+                    dist_min_left = GetVerticalDistancePt2Line(pair_for_supports[0], pt_left, pt_right)
+                    pt_min_left = pair_for_supports[0]
+                    dist_min_right = GetVerticalDistancePt2Line(pair_for_supports[1], pt_left, pt_right)
+                    pt_min_right = pair_for_supports[1]
+                    idx_order_from_closest_to_farthest_left, gap_list_left = PrioritizeBlocks(dist_min_left, pt_min_left, num_movable, movable_ID, ID_dict, ID_state_matching)
+                    idx_order_from_closest_to_farthest_right, gap_list_right = PrioritizeBlocks(dist_min_right, pt_min_right, num_movable, movable_ID, ID_dict, ID_state_matching)
+                    # Ground choice of pt_min_left and pt_min_right
+                    _, _, grd_choice_left = GetydistPt2grd([pt_min_left[0], pt_min_left[1]-5], env_local) # to check which grd
+                    _, _, grd_choice_right = GetydistPt2grd([pt_min_right[0], pt_min_right[1]-5], env_local)
+
+                    # Decide the state of support
+                    state_support_temp_left, u_move, env_local_temp, support_idx1 = DecideSupportingState(idx_order_from_closest_to_farthest_left, pt_min_left, dist_min_left, grd_choice_left, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                    idx_order_from_closest_to_farthest_right.remove(support_idx1)
+                    state_support_temp_right, u_move, env_local_temp, support_idx2 = DecideSupportingState(idx_order_from_closest_to_farthest_right, pt_min_right, dist_min_right, grd_choice_right, movable_ID, ID_dict, ID_state_matching, u_move, w_block, h_block, env_local)
+                    # Matching block
+                    # 1
+                    support_id1 = movable_ID[support_idx1]
+                    support_type1 = ID_dict[support_id1] # 'metalrectangle'
+                    support_state1 = ID_state_matching[support_id1] # [x,y,w,h,rot]
+                    w_support1 = support_state1[2]
+                    h_support1 = support_state1[3]
+                    # 2
+                    support_id2 = movable_ID[support_idx2]
+                    support_type2 = ID_dict[support_id2] # 'metalrectangle'
+                    support_state2 = ID_state_matching[support_id2] # [x,y,w,h,rot]
+                    w_support2 = support_state2[2]
+                    h_support2 = support_state2[3]
+
+                # Assign values               
+                if num_supporting_best == 0:
+                    pass
+                elif num_supporting_best == 1:
+                    x_support = state_support_temp[0]
+                    y_support = state_support_temp[1]
+                    w_support = state_support_temp[2]
+                    h_support = state_support_temp[3]
+                    theta_support = state_support_temp[4]
+                else:
+                    # 1
+                    x_support1 = state_support_temp_left[0]
+                    y_support1 = state_support_temp_left[1]
+                    w_support1 = state_support_temp_left[2]
+                    h_support1 = state_support_temp_left[3]
+                    theta_support1 = state_support_temp_left[4]
+                    # 2
+                    x_support2 = state_support_temp_right[0]
+                    y_support2 = state_support_temp_right[1]
+                    w_support2 = state_support_temp_right[2]
+                    h_support2 = state_support_temp_right[3]
+                    theta_support2 = state_support_temp_right[4]
+
+
+            '''
+            -------------------------------------------------------
+            Smallest loop for assinging the supporting blocks repeatedly
+            ** 4rd loop
+            -------------------------------------------------------
+            '''
+            if block_type[0:4] != "wood":
+                # Adjustment of constraints
+
+                # Input the main block.                      
+                state_input_localregion = []   
+                state_input_localregion.append([input_id, u_actual[0], u_actual[1], u_actual[2]])
+                # draw the figure with blocks
+                if block_type == "metalrectangle" or block_type == "metalrtriangle" or block_type == "metalcircle":
+                    metalblock = metalBlock(u_actual[0],u_actual[1],w_block,h_block,u_actual[2], block_type)
+                    alpha = 1.1-(count_1st_loop + count_2nd_loop + count_3rd_loop)*0.05
+                    display.drawobject(metalblock, alpha)  
+                elif block_type == "speedupr" or block_type == "speedupl":
+                    powerups = powerUps(u_actual[0], u_actual[1], block_type)
+                    display.drawobject(powerups, 0)
+
+                plt.show(block=False)
+                plt.pause(5)
+                state_input.extend(state_input_localregion)
+                run_simulation(level_select, movable_ID, ID_dict, state_input)
+                for i in range(len(state_input_localregion)):
+                    del state_input[-1]
+                # Observe again about the main, ball, support blocks trajectory and check when the contact between blocks is active (contact_idx)
+                traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", level_select)   
+                # traj : [vx,vy,w,x,y,rot]
+                # check the order of the ID in the ID_list 
+                ball_traj = traj_list[ball_idx]  
+                mainblock_traj = traj_list[pick_main_idx+1] # in log file, we include ball, so we need to add 1 
+
+                # 7) Check the error between guide_path_local, direction_end and mainblock_traj at x_local  
+                # ref : [x,y,dir] / state_ball : [x,y,vx,vy]
+                ref = [guide_path_local_update[-1][0],guide_path_local_update[-1][1], direction_end]
+                traj_sorted, idx_sorted = SortedTrajInLocal(ball_traj, local_region)
+                # get the minimum of the error between guide path and each element of the entire trajectory
+                for i in range(len(traj_sorted)):
+                    state_ball_current = [traj_sorted[i][3], traj_sorted[i][4], traj_sorted[i][0], traj_sorted[i][1]]
+                    error, error_vector = GetError(ref, state_ball_current)  
+                    if error <= error_min:
+                        error_min = error
+                        index_min = i                     
+                # deviation between the actual traj. of main block and desired traj. of main block
+                # desired_traj_main [vx,vy,w,x,y,rot]
+                display.drawtraj(traj_sorted)
+                plt.show(block=False)
+                plt.pause(3)
+                print("error : {}".format(error_min))
+                print("iteration 1st loop, 2nd loop, 3rd loop: {0}, {1}, {2}".format(count_1st_loop, count_2nd_loop, count_3rd_loop))
+            else:
+                # if type is wood
+                err_main_criterion = 2000
+                err_main = 50000
+                flag_supportings = True
+                count_4th_loop = 0
+                u_move = u_best
+                while bool_success == False and error_min > err_criterion_ball and err_main > err_main_criterion and flag_supportings and count_4th_loop <2 and  block_type[0:4] == "wood":
+                    count_4th_loop += 1
+                    print("iteration 1st loop, 2nd loop, 3rd loop, 4th loop : {0}, {1}, {2}, {3}".format(count_1st_loop, count_2nd_loop, count_3rd_loop, count_4th_loop))
+                    # First loop (No update)
+                    if count_4th_loop == 1:
+                        if num_supporting_best == 0:
+                            flag_supportings = False
+                        else:
+                            flag_supportings = True
+                            # we have to change the optimization solution
+                    # Loop for updates
+                    else:
+                        # 8)-0. From required force or error_main_array, we can update the supporting blocks    
+                        if num_supporting_best == 0:
+                            # we have to change the optimization solution
+                            flag_supportings = False
+                        elif num_supporting_best == 1:
+                            # rough guess of configuration of supporting blocks
+                            support_idx = idx_order_from_closest_to_farthest[0]
+                            support_id = movable_ID[support_idx]
+                            support_type = ID_dict[support_id] # 'metalrectangle'
+                            support_state = ID_state_matching[support_id] # [x,y,w,h,rot]
+                            w_support = support_state[2]
+                            h_support = support_state[3]                        
+
+                            if pt_min[0] > block_state_desired[0]+w_block/2: # move right, left point is left
+                                x_support = x_support + error_main_array[3]
+                                y_support = y_support + error_main_array[4]
+                            else:
+                                x_support = pt_min[0] + error_main_array[3]
+                                y_support = pt_min[1] + error_main_array[4]
+                            theta_support = grd_choice[4] # same with the angle of underlying ground
+                            if abs(w_support-dist_min) < abs(h_support-dist_min):
+                                theta_support += 90
+                        else:
+                            pass
+
+
+                    if flag_supportings == False:
+                        pass
+                    else:
+                        if num_supporting_best == 1:                            
+                            print("ggg")
+                            u_support = [x_support, y_support, w_support, h_support, theta_support]
+
+                            # Check feasibility (between suppoting and main)
+                            main_state = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
+                            bool_overlap, _ = CheckOverlap(main_state, u_support)
+                            while bool_overlap == True:
+                                u_move[1] -= 10
+                                main_state = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
+                                bool_overlap, _ = CheckOverlap(main_state, u_support)
+                        else:
+                            u_support1 = [x_support1, y_support1, w_support1, h_support1, theta_support1]
+                            u_support2 = [x_support2, y_support2, w_support2, h_support2, theta_support2]
+     
+
+                        # Get a new feasible solution among the previous feasible set
+
+                        # print("check time start {}".format(time.time()))
+                        # for umain_length_fobj_tuple in umain_length_fobj_tuple_list_extend:
+                        #     # umain_length_fobj_tuple = (u_main, adaptive_length, f_obj)
+                        #     u_main = umain_length_fobj_tuple[0]  # l, theta form 
+                        #     adaptive_length = umain_length_fobj_tuple[1]
+                        #     if abs(s_ball_ini[2]) < 0.5:
+                        #         # vx = 0, fall downward
+                        #         state_ball = MakeF1withTraj(traj_sorted_init, adaptive_length)
+                        #     else:
+                        #         state_ball = MakeF1withTraj(traj_sorted_init, adaptive_length)                    
+                        #     s_ball_mid_temp = [state_ball[0], state_ball[1], state_ball[2], state_ball[3], s_ball_ini[4]]
+                        #     u_move, vel_desired = ConvertUopt2Ureal(u_main, block_type, w_block, h_block, s_ball_mid_temp)
+                        #     # Restore the u_move
+                        #     main_state = [u_move[0], u_move[1], w_block, h_block, u_move[2]]
+                        #     bool_overlap, _ = CheckOverlap(main_state, u_support)
+                        #     if bool_overlap == True:
+                        #         pass
+                        #     else:
+                        #         break   
+                        # print("check time end{}".format(time.time()))
+                        # print(umain_length_fobj_tuple)
+
+                    # 8) Simulate the main block and observe the traj. with roughly estimated supporting blocks
+                    # state_input = ([[id1, x1, y1, theta1],[id2, x2, y2, theta2],...]) list
+                    # previous input is removed but, we have to leave the previous local region's input
+                    
+                    # input the main block
+                    state_input_localregion = []
+                    state_input_localregion.append([input_id, u_move[0], u_move[1], u_move[2]])
+                    
+                    # input the supporting block
+                    if flag_supportings == False:
+                        pass
+                    else: 
+                        if num_supporting_best == 1:
+                            state_input_localregion.append([support_id, x_support, y_support, theta_support])
+                        else:
+                            state_input_localregion.append([support_id1, x_support1, y_support1, theta_support1])
+                            state_input_localregion.append([support_id2, x_support2, y_support2, theta_support2])
+                    # draw the figure with blocks
+                    alpha = 1.15-(count_1st_loop + count_2nd_loop + count_3rd_loop + count_4th_loop)*0.05
+                    if not obj_main_pre:
+                        print("no obj before")
+                        pass
+                    else:
+                        if num_supporting_best == 0:
+                            display.eraseobject()
+                        elif num_supporting_best == 1:
+                            display.eraseobject()
+                            display.eraseobject()
+                        else:
+                            display.eraseobject()
+                            display.eraseobject()
+                            display.eraseobject()
+
+                    print("time check {}".format(time.time()))
+                    if block_type == "metalrectangle" or block_type == "metalrtriangle":
+                        metalblock = metalBlock(u_move[0],u_move[1],w_block,h_block,u_move[2])
+                        obj_main_pre = display.drawobject(metalblock,alpha)
+                    elif block_type == "woodrectangle" or block_type == "woodrtriangle":
+                        woodblock = woodBlock(u_move[0],u_move[1],w_block,h_block,u_move[2])     
+                        obj_main_pre = display.drawobject(woodblock,alpha)
+                    if num_supporting_best == 0:
+                        pass
+                    elif num_supporting_best == 1:                        
+                        if support_type == "metalrectangle" or support_type == "metalrtriangle":
+                            metalblock = metalBlock(x_support,y_support,w_support,h_support,theta_support)
+                            obj_support_pre = display.drawobject(metalblock, alpha)
+                        elif support_type == "woodrectangle" or support_type == "woodrtriangle":
+                            woodblock = woodBlock(x_support,y_support,w_support,h_support,theta_support)
+                            obj_support_pre = display.drawobject(woodblock, alpha)
+                    else:
+                        # 1
+                        if support_type1 == "metalrectangle" or support_type1 == "metalrtriangle":
+                            metalblock1 = metalBlock(x_support1,y_support1,w_support1,h_support1,theta_support1)
+                            obj_support_pre1 = display.drawobject(metalblock1, alpha)
+                        elif support_type1 == "woodrectangle" or support_type1 == "woodrtriangle":
+                            woodblock1 = woodBlock(x_support1,y_support1,w_support1,h_support1,theta_support1)
+                            obj_support_pre1 = display.drawobject(woodblock1, alpha)
+                        # 2
+                        if support_type2 == "metalrectangle" or support_type2 == "metalrtriangle":
+                            metalblock2 = metalBlock(x_support2,y_support2,w_support2,h_support2,theta_support2)
+                            obj_support_pre2 = display.drawobject(metalblock2, alpha)
+                        elif support_type2 == "woodrectangle" or support_type2 == "woodrtriangle":
+                            woodblock2 = woodBlock(x_support2,y_support2,w_support2,h_support2,theta_support2)
+                            obj_support_pre2 = display.drawobject(woodblock2, alpha) 
+
+                    print("time check 2: {}".format(time.time()))
+                    plt.show(block=False)
+                    plt.pause(5)
+                    state_input.extend(state_input_localregion)
+                    print("time check 3: {}".format(time.time()))
+                    print("state input {}".format(state_input))
+                    run_simulation(level_select, movable_ID, ID_dict, state_input)
+                    print("time check 4: {}".format(time.time()))
+
+                    # clear the current input 
+                    for i in range(len(state_input_localregion)):
+                        del state_input[-1]
+
+                    # Observe again about the main, ball, support blocks trajectory and 
+                    # check when the contact between blocks is active (contact_idx)
+                    traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", level_select)   
+                    # traj : [vx,vy,w,x,y,rot]
+                    # check the order of the ID in the ID_list 
+                    mainblock_traj = traj_list[pick_main_idx+1] # in log file, we include ball, so we need to add 1
+                    ball_traj = traj_list[ball_idx]    
+                    if num_supporting_best == 0:
+                        support_block_traj = []
+                    elif num_supporting_best == 1:
+                        support_block_traj = traj_list[support_idx+1]
+                    else:
+                        support_block_traj1 = traj_list[support_idx1+1]
+                        support_block_traj2 = traj_list[support_idx2+1]
+
+                    contact_idx_blocks = 0
+                    contact_idx_ball2main = 0
+                    flag_collision_blocks = False
+                    flag_collision_ball = False
+                    for collision_element in collision:
+                        # [time, collision type, objA, objB]
+                        if (collision_element[2] == input_id and collision_element[3] != id_ball and flag_collision_blocks == False) or (collision_element[3] == input_id and collision_element[2] != id_ball and flag_collision_blocks == False):
+                            if collision_element[1] == "collisionStart":
+                                contact_idx_blocks = 0
+                                flag_collision_blocks = True
+                                while abs(collision_element[0] - trace_time[contact_idx_blocks]) > 10:
+                                    contact_idx_blocks = contact_idx_blocks+1            
+                        elif (collision_element[2] == input_id and collision_element[3] == id_ball and flag_collision_ball == False) or (collision_element[3] == input_id and collision_element[2] == id_ball and flag_collision_ball == False):
+                            if collision_element[1] == "collisionStart":
+                                contact_idx_ball2main = 0
+                                flag_collision_ball = True
+                                while abs(collision_element[0] - trace_time[contact_idx_ball2main]) > 10:
+                                    contact_idx_ball2main = contact_idx_ball2main+1
+
+                    # 9) Check the error between guide_path_local, direction_end and mainblock_traj at x_local  
+                    # ref : [x,y,dir] / state_ball : [x,y,vx,vy]
+                    ref = [guide_path_local_update[-1][0],guide_path_local_update[-1][1], direction_end]
+                    traj_sorted, idx_sorted = SortedTrajInLocal(ball_traj, local_region)
+                    
+                    error_min = 50000
+                    index_min = 0
+                    for i in range(len(traj_sorted)):
+                        state_ball_current = [traj_sorted[i][3], traj_sorted[i][4], traj_sorted[i][0], traj_sorted[i][1]]
+                        error, error_vector = GetError(ref, state_ball_current)  
+                        if error <= error_min:
+                            error_min = error
+                            index_min = i
+
+                    if error_min == 50000: # need to change supporting blocks
+                        # we need to add the way to change support block
+                        break 
+                    else:
+                        print("error error_min {}, {}".format(error, error_min))
+                        print("error, index_min, len(traj_sorted): {}, {}. {}".format(error, index_min, len(traj_sorted)))        
+
+                    # 10) Check deviation between the actual traj. of main block and desired traj. of main block
+                    # desired_traj_main [vx,vy,w,x,y,rot]
+                    desired_traj_main = np.array([vel_desired[0], vel_desired[1], vel_desired[2], u_actual[0], u_actual[1], u_actual[2]])
+                    error_main_array = desired_traj_main - mainblock_traj[contact_idx_ball2main]
+                    err_main = np.sum(np.square(error_main_array))
+
+                    print(mainblock_traj)
+                    print("error of ball and main are {0} and {1}".format(error_min, err_main))
+                    print("ball state at min error is {}".format(traj_sorted[index_min]))
+                    print("main block state in collision is {}".format(mainblock_traj[contact_idx_ball2main]))
+                    #display.drawtraj([traj_sorted[index_min]])
+                    # draw the actual main block state at the contact with the ball
+                    display.drawtraj(traj_sorted)
+                    woodblock = woodBlock(mainblock_traj[contact_idx_ball2main][3],mainblock_traj[contact_idx_ball2main][4],w_block,h_block,mainblock_traj[contact_idx_ball2main][5])
+                    display.drawobject(woodblock, 0.2)
+
+                    plt.show(block=False)
+                    plt.pause(3)
+
+                    # 11) Compute the required force and point (if wood)
+                    if block_type[0:5] == "metal":
+                        pass
+                    else:
+                        print("contact_idx_blocks {}".format(contact_idx_blocks))
+                        p2 = ComputeSupportForces(block_type, mainblock_desired_state, mainblock_traj, contact_idx_blocks)
+                        #desired_state(x,y,w,h,rot,vx,vy,w_rot)
+                    print(p2)
+                    display.drawpoint(p2)
+                    plt.show(block=False)
+                    plt.pause(3)
+
+    state_input_update = state_input   
+    p_start_update = [traj_sorted[index_min][3], traj_sorted[index_min][4]]
+    return state_input_update, p_start_update
+
 if __name__=="__main__":
 
     # Test for a local region
-    level_select = 2
+    level_select = 9
     # 0) Prerequisite : guide path
-    guide_path = [[20,135],[50,155],[110,150],[180,170],[230,185],[280,175],[310,185],[340,195],[400,200]]
+    #guide_path = [[20,135],[50,155],[110,150],[180,170],[230,185],[280,175],[310,185],[340,195],[400,200]]
     #guide_path = [[450, 120], [443, 158], [411, 167], [379, 192], [350, 205], [315, 177], [276, 202], [241, 195], [204, 186], [166, 178], [135, 196], [104, 209], [78, 207], [61, 202], [34, 195]]
     #guide_path = [[75, 100], [99, 120], [120, 126], [142, 136], [178, 144], [220, 141], [230, 153], [266, 133], [290, 169], [331, 153], [338, 154], [383, 195], [424, 217], [440, 240], [439, 254], [419, 285]]
     #guide_path = [[210, 100], [241, 119], [284, 139], [304, 129], [348, 137], [372, 144], [391, 151], [435, 153], [476, 167], [446, 210], [407, 223], [389, 227], [377, 260], [345, 276], [310, 274], [276, 263], [255, 283], [243, 287], [209, 294], [176, 288], [159, 292], [139, 293], [117, 300], [86, 302], [59, 292], [34, 285]]
     #guide_path = [[25, 100], [38, 119], [79, 132], [108, 154], [126, 142], [167, 137], [195, 134], [230, 147], [239, 150], [275, 154], [295, 179], [327, 202], [356, 212], [384, 222], [414, 234], [417, 253], [419, 275]]
+    # level 9
+    guide_path = [[25, 100], [63, 123], [98, 129], [119, 150], [138, 181], [155, 193], [175, 199], [216, 216], [257, 214], [291, 208], [338, 223], [366, 240], [381, 253], [406, 258], [434, 265]]
     state_input = [] # decided ahead in previous local regions
     #state_input.append(["AO6G", 0,0,0])
     
+
+    #LocalRegion(guide_path, level_select, state_input)
+
     # 1) Predict the ball's traj, load a traj. from a log file
     id_grd, s_grd_list, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
     state_input.append(["{}".format(movable_ID[0]), 0,0,0])

@@ -39,13 +39,14 @@ class Ball:
 
 class metalBlock:
     # It can also cover the ground piece (same friction)
-    def __init__(self, x, y, w, h, rot):
+    def __init__(self, x, y, w, h, rot, block_type = "metalrectangle"):
         self.x = x
         self.y = y
         self.w = w
         self.h = h
         self.rot = rot
         self.fric = 0.5
+        self.block_type = block_type
 
 class woodBlock:
     def __init__(self, x, y, w, h, rot, vx = 0, vy = 0, w_rot = 0, block_type = "rectangle"):
@@ -85,10 +86,11 @@ class woodBlock:
         return self.traj
 
 class powerUps:
-    def __init__(self, x, y):
+    def __init__(self, x, y, power_type):
         self.x = x
         self.y = y
         self.size = 26
+        self.power_type = power_type
 
 if __name__ == "__main__":
     obj = powerUps(1,2)
