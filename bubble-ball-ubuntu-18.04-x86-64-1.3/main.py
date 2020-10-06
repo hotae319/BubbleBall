@@ -41,8 +41,28 @@ run_simulation(level_select, movable_ID, ID_dict, state_input)
 state_input = []
 
 # local region loop
-state_input_update, p_start_update = LocalRegion(guide_path, level_select, state_input)
-print(state_input_update, p_start_update)
+data_pre = [0,0]
+n_iter = 0
+flag_success = 1
+idx_local_start = 0
+while flag_success != 0 and n_iter < 6:
+    n_iter += 1
+    state_input_update, p_start_update, flag_success, data, idx_local_end = LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start)
+    print(state_input_update, p_start_update, flag_success, data, idx_local_end)
+    if flag_success == 0:
+        # success
+        print("We made success")
+    elif flag_success == 1:
+        # local success / go to next    
+        prm, shortest_path, _, _ = path_planning(level, n_sample, k1 , map_size, p_start_update)  
+        guide_path_new = guide_path[0:idx_local_end+1] + [path for path in shortest_path]
+        print("guide_path : {}".format(guide_path)) 
+        state_input = state_input_update
+        data_pre = data
+        idx_local_start = idx_local_end
+    else:
+        print("we need exploration")
+
 #prm, guide_path, _, _ = path_planning(level_select, n_sample, k1 , map_size, p_start_update)  
 
 

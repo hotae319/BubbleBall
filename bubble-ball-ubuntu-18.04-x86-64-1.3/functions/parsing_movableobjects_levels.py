@@ -446,12 +446,15 @@ def logging_trajectory(filename, level_select):
                 j = k - 1
                 while content[j][1] != "trace" and content[j][1] != "levelComplete":
                     j += 1
-                while content[j][2] != content[k][3] and end_flag != True:                                  
-                    j = j + 1
-                    if j >= n_log-1:
-                        end_flag = True
-                    elif content[j+1][1] == "levelComplete":
-                        end_flag = True
+                if content[j][1] == "levelComplete":
+                    end_flag = True
+                else:
+                    while content[j][2] != content[k][3] and end_flag != True:                                  
+                        j = j + 1
+                        if j >= n_log-1:
+                            end_flag = True
+                        elif content[j+1][1] == "levelComplete":
+                            end_flag = True
                 if end_flag == True:
                     s_post2 = []
                 else:

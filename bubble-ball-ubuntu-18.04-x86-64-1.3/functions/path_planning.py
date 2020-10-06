@@ -49,11 +49,12 @@ def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500], p_start = [0
     num_samples = n_sample  
     if p_start == [0,0]:
         p_start = s_total[0][0:2] # ball's position
-        p_start[0] += 15
-        p_start[1] += 15
+        # p_start[0] += 15
+        # p_start[1] += 15
     else:
-        p_start[0] += 15
-        p_start[1] += 15
+        pass
+        #p_start[0] += 15
+        #p_start[1] += 15
     p_end = s_total[1][0:2]
     p_end[0] += 19 # the center w,h = (38,50)
     p_end[1] += 25 

@@ -82,18 +82,51 @@ def Ball2Circle(ball, r, x, y, vx, vy, w, v_thres = 1):
         ball.vy = vt*cos_theta-v*sin_theta
     return ball
 
-def Ball2CircleValue(xball, yball, vxball, vyball, rball, r, x, y, vx, vy, w, v_thres = 1):
-    vt = vxball*(y-yball)/(rball+r) - vyball*(x-xball)/(rball+r)
+def Ball2CircleValue(xball, yball, vxball, vyball, rball, r, x, y, vx, vy, w, e = 0, v_thres = 1):
+    
+    # e : coefficient of restitution
+    vt_ball = vxball*(y+r-yball-rball)/(rball+r) - vyball*(x+r-xball-rball)/(rball+r)
+    vn_ball = vxball*(x+r-xball-rball)/(rball+r) + vyball*(y+r-yball-rball)/(rball+r)
     # v : vel of Circle
-    v = vy*(x-xball)/(rball+r)-vx*(y-yball)/(rball+r)
-    sin_theta = (y-yball)/(rball+r)
-    cos_theta = (x-xball)/(rball+r)
-    if abs(v) <= v_thres:
-        vxball = vt*sin_theta # vt*sin(theta)
-        vyball = vt*cos_theta
+    vt = vx*(y+r-yball-rball)/(rball+r) - vy*(x+r-xball-rball)/(rball+r)
+    vn = vy*(x+r-xball-rball)/(rball+r) + vx*(y+r-yball-rball)/(rball+r)
+
+    cos_theta = (y+r-yball-rball)/(rball+r)
+    sin_theta = (x+r-xball-rball)/(rball+r)
+    if abs(vn) <= v_thres:
+        vxball = vt_ball*cos_theta - e*vn_ball*sin_theta # vt*sin(theta)
+        vyball = -vt_ball*sin_theta - e*vn_ball*cos_theta
     else:       
-        vxball = vt*sin_theta-v*cos_theta # vt*sin(theta)
-        vyball = vt*cos_theta-v*sin_theta
+        vxball = vt_ball*cos_theta-(vn+e*vn_ball)*sin_theta # vt*sin(theta)
+        vyball = -vt_ball*sin_theta-(vn+e*vn_ball)*cos_theta
+    ball = [xball,yball,vxball,vyball]
+    return ball
+
+def Ball2CircleValueTilde(xball, yball, vxball, vyball, rball, r, x, y, vx, vy, w, e = 0, v_thres = 1):
+    # # e : coefficient of restitution
+    # vt_ball = vxball*(y-yball)/(rball+r) - vyball*(x-xball)/(rball+r)
+    # vn_ball = vxball*(x-xball)/(rball+r) + vyball*(y-yball)/(rball+r)
+    # # v : vel of Circle
+    # vt = vx*(y-yball)/(rball+r) - vy*(x-xball)/(rball+r)
+    # vn = vy*(x-xball)/(rball+r) + vx*(y-yball)/(rball+r)
+
+    # cos_theta = (y-yball)/(rball+r)
+    # sin_theta = (x-xball)/(rball+r)
+    # e : coefficient of restitution
+    vt_ball = vxball*(y+r-yball-rball)/(rball+r) - vyball*(x+r-xball-rball)/(rball+r)
+    vn_ball = vxball*(x+r-xball-rball)/(rball+r) + vyball*(y+r-yball-rball)/(rball+r)
+    # v : vel of Circle
+    vt = vx*(y+r-yball-rball)/(rball+r) - vy*(x+r-xball-rball)/(rball+r)
+    vn = vy*(x+r-xball-rball)/(rball+r) + vx*(y+r-yball-rball)/(rball+r)
+
+    cos_theta = (y+r-yball-rball)/(rball+r)
+    sin_theta = (x+r-xball-rball)/(rball+r)
+    if abs(vn) <= v_thres:
+        vxball = - vn_ball*sin_theta # vt*sin(theta)
+        vyball = - vn_ball*cos_theta
+    else:       
+        vxball = -(vn_ball)*sin_theta # vt*sin(theta)
+        vyball = -(vn_ball)*cos_theta
     ball = [xball,yball,vxball,vyball]
     return ball
 
@@ -203,12 +236,12 @@ def Ball2PowerupValue(xball, yball, vxball, vyball, rball, x, y, power_type):
     m = 4/3*pi*15**3*0.2
     if power_type == "speedupr":
         if (x+r_powerup-xball-rball)**2+(y+r_powerup-yball-rball)**2 <= (r_powerup+rball)**2:
-            vxball += 100
+            vxball += 191
         else:
             vxball += 0
     elif power_type == "speedupl":
         if (x+r_powerup-xball-rball)**2+(y+r_powerup-yball-rball)**2 <= (r_powerup+rball)**2:
-            vxball -= 100
+            vxball -= 191
         else:
             vxball -= 0
     ball = [xball,yball,vxball,vyball]
