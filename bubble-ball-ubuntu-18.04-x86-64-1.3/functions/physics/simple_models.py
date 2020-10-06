@@ -161,9 +161,14 @@ def BallinAirValue(xball, yball, vxball, vyball, lx, ly = 0):
         yball += ly
         vyball += sqrt(vyball**2+2*g*ly)
     else:
-        xball += lx
-        yball += vyball/vxball*lx+g/2*lx**2/vxball**2
-        vyball += g*lx/vxball
+        if lx*vxball >= 0:
+            xball += lx
+            yball += vyball/vxball*lx+g/2*lx**2/vxball**2
+            vyball += g*lx/vxball
+        else:
+            xball += lx
+            yball = 10000000000
+            vyball = 1000000000
     ball = [xball,yball,vxball,vyball]
     return ball
 

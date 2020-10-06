@@ -56,7 +56,7 @@ while flag_success != 0 and n_iter < 6:
         # local success / go to next    
         prm, shortest_path, _, _ = path_planning(level, n_sample, k1 , map_size, p_start_update)  
         guide_path_new = guide_path[0:idx_local_end+1] + [path for path in shortest_path]
-        print("guide_path : {}".format(guide_path)) 
+        print("guide_path in main py : {}".format(guide_path)) 
         state_input = state_input_update
         data_pre = data
         idx_local_start = idx_local_end
