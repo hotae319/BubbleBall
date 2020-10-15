@@ -479,9 +479,12 @@ def logging_trajectory(filename, level_select):
         traj_list.append([])
 
     # sort by ID
-    for k in range(0,n_trace-n_obj,n_obj):
+    for k in range(0,n_trace,n_obj): # range(0,n_trace-n_obj,n_obj)
         for i in range(n_obj):
-            temp = trace[k+i]
+            if k+i >= len(trace):
+                pass
+            else:
+                temp = trace[k+i]
             if temp[1] == "trace":
                 traj_list[i].append(temp[3:9])  
         trace_time.append(float(trace[k][0])) # save time as a float (unit : ms)

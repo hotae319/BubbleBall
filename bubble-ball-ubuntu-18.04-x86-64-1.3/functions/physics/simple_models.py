@@ -46,20 +46,35 @@ def Ball2LineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, w, v_t
     v = vy*cos(theta)-vx*sin(theta)+l*w # v means the velocity of the contact point of the block 
     # rolling on the block
     if abs(v) <= v_thres and abs(w) <= w_thres:
-        if abs(vt) >= 0.5:
-            xball = xball+l*cos(theta)
-            yball = yball+l*sin(theta)
-            if vt**2+2*g*l*sin(theta) >0:
-                vend = sqrt(vt**2+2*g*l*sin(theta))
-            else: # opposite slope
-                vend = 0
-            vxball = vend*cos(theta)
-            vyball = vend*sin(theta)
-            status = "rolling"
+        if l*theta >= 0:            
+            if abs(vt) >= 0.5:
+                vend = sqrt(vt**2+2*g*l*sin(theta))*np.sign(l)
+                xball = xball+l*cos(theta)
+                yball = yball+l*sin(theta)
+                vxball = vend*cos(theta)
+                vyball = vend*sin(theta)      
+                status = "rolling"          
+            else:
+                vxball = 0
+                vyball = 0
+                status = "stop"
         else:
-            vxball = 0
-            vyball = 0
-            status = "stop"
+            # l>0 , theta <0 or l<0, theta >0
+            if vt*l < 0:
+                vxball = vt*cos(theta)
+                vyball = vt*sin(theta)
+                status = "rolling"
+            if vt**2+2*g*l*sin(theta) >0:
+                vend = sqrt(vt**2+2*g*l*sin(theta))*np.sign(l)
+                xball = xball+l*cos(theta)
+                yball = yball+l*sin(theta)
+                vxball = vend*cos(theta)
+                vyball = vend*sin(theta)
+                status = "rolling"
+            else: # opposite slope
+                vend = -vt # opposite
+                status = "rolling"
+
     # hitting the ball
     else:
         vxball = v*sin(theta)+vt*cos(theta)
@@ -67,6 +82,20 @@ def Ball2LineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, w, v_t
         status = "hitting"
     ball = [xball,yball,vxball,vyball]
     return ball, status
+
+def Ball2MovingLineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, w, e, v_thres = 1, w_thres = 1):
+    # degree to radians 
+    theta = theta/180*pi
+    w = w/180*pi
+    vt = vxball*cos(theta)+vyball*sin(theta)
+    # v means the velocity of the contact point of the block 
+    # velocity approaching each other
+    v = -vy*cos(theta)+vx*sin(theta)+abs(l)*w 
+    # after collision
+    vxball = v*sin(theta)+vt*cos(theta)
+    vyball = -v*cos(theta)+vt*sin(theta)    
+    ball = [xball,yball,vxball,vyball]
+    return ball
 
 # 2) ball to circle (state: ball, input: x,y,v,w)
 def Ball2Circle(ball, r, x, y, vx, vy, w, v_thres = 1):

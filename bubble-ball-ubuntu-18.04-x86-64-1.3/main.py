@@ -13,7 +13,7 @@ from functions.localregion import SortoutEnv, LocalRegion
 '''
 0. import the enviornment setting
 '''
-level = 9
+level = 21
 id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level)
 
 type_obj_list = ["ground" for i in range(len(id_grd))]
@@ -30,9 +30,12 @@ k2 = 10
 n_exclude = 1
 prm, shortest_path, sampling_list, ax1 = path_planning(level, n_sample, k1 , map_size)    
 #re_planning(prm, level, shortest_path, k2, n_exclude)
-level_select = 9
+level_select = 21
 state_input = []
-guide_path = [[25, 100], [63, 123], [98, 129], [119, 150], [138, 181], [155, 193], [175, 199], [216, 216], [257, 214], [291, 208], [338, 223], [366, 240], [381, 253], [406, 258], [434, 265]]
+#guide_path = [[25, 100], [63, 123], [98, 129], [119, 150], [138, 181], [155, 193], [175, 199], [216, 216], [257, 214], [291, 208], [338, 223], [366, 240], [381, 253], [406, 258], [434, 265]]
+guide_path = shortest_path
+# for level 5
+#guide_path = [[210, 100], [241, 119], [284, 139], [304, 129], [348, 137], [372, 144], [391, 151], [435, 153], [476, 180], [446, 210], [407, 223], [389, 227], [377, 260], [345, 276], [310, 274], [276, 263], [255, 283], [243, 287], [209, 294], [176, 288], [159, 292], [139, 293], [117, 300], [86, 302], [59, 292], [34, 285]]
 
 # Initialize
 id_grd, s_grd_list, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
@@ -54,8 +57,8 @@ while flag_success != 0 and n_iter < 6:
         print("We made success")
     elif flag_success == 1:
         # local success / go to next    
-        prm, shortest_path, _, _ = path_planning(level, n_sample, k1 , map_size, p_start_update)  
-        guide_path_new = guide_path[0:idx_local_end+1] + [path for path in shortest_path]
+        #prm, shortest_path, _, _ = path_planning(level, n_sample, k1 , map_size, p_start_update)  
+        #guide_path_new = guide_path[0:idx_local_end+1] + [path for path in shortest_path]
         print("guide_path in main py : {}".format(guide_path)) 
         state_input = state_input_update
         data_pre = data
