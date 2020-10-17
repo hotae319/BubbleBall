@@ -187,8 +187,14 @@ def BallinAir(ball, l):
 def BallinAirValue(xball, yball, vxball, vyball, lx, ly = 0):
     # l denotes the distance along x axis, l>0
     if lx == 0 or abs(vxball) < 0.5 :
-        yball += ly
-        vyball += sqrt(vyball**2+2*g*ly)
+        
+        if vyball**2+2*g*ly >=0:
+            yball += ly
+            vyball += sqrt(vyball**2+2*g*ly)
+        else:
+            vyball = 0
+            yball += -vyball**2/2/g
+
     else:
         if lx*vxball >= 0:
             xball += lx

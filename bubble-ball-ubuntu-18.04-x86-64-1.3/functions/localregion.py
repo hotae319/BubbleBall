@@ -212,8 +212,10 @@ def fobj(x,*y):
     elif y[8] == "catapult":
         e = y[11]
         state_ball_collision = Ball2MovingLineValue(y[0],y[1],y[2],y[3],y[4],x[0],x[1],x[2],x[3],x[4],e)
-        x_distance = abs(ref[0]-y[0])
-        y_distance = abs(ref[1]-y[1])
+
+        x_distance = ref[0]-y[0]
+        y_distance = ref[1]-y[1]
+        print("state_ball_collision, x_distance, y_distance {}, {}, {}".format(state_ball_collision, x_distance, y_distance))
         state_ball = BallinAirValue(state_ball_collision[0],state_ball_collision[1],state_ball_collision[2],state_ball_collision[3],x_distance,y_distance)    
         
     elif y[8] == "woodcircle" or y[8] == "metalcircle":
@@ -224,7 +226,7 @@ def fobj(x,*y):
         # x_{k+N} = f_s(x_k, u_k)
         e = y[11]
         state_ball_collision = Ball2CircleValue(y[0],y[1],y[2],y[3],y[4],y[9][2]/2,x[0],x[1],x[2],x[3],x[4], e)
-        # x_{k+1} = f_env(x_k, z) 
+        # x_{k+1} = f_env(x_k, z)  
         x_distance = abs(ref[0]-y[0])
         y_distance = abs(ref[1]-y[1])
         state_ball = BallinAirValue(state_ball_collision[0],state_ball_collision[1],state_ball_collision[2],state_ball_collision[3],x_distance,y_distance)    
@@ -479,9 +481,9 @@ def ConvertUopt2Ureal(u_input, block_type, w_block, h_block, s_ball_ini):
         height = h_block
         theta = u_input[1]/180*pi
         if l >=0:
-            u_actual = [xball+rball-rball*sin(theta)+l*cos(theta)-width/2-width/2*cos(theta)-height/2*sin(theta), yball+rball+rball*cos(theta)+l*sin(theta)-height/2-width/2*sin(theta)+height/2*cos(theta), 0]
+            u_actual = [xball+rball-rball*sin(theta)+(l+width/2)*cos(theta)-width/2-width/2*cos(theta)-height/2*sin(theta), yball+rball+rball*cos(theta)+(l+width/2)*sin(theta)-height/2-width/2*sin(theta)+height/2*cos(theta), 0]
         else:
-            u_actual = [xball+rball-rball*sin(theta)+l*cos(theta)-width/2+width/2*cos(theta)-height/2*sin(theta), yball+rball+rball*cos(theta)+l*sin(theta)-height/2+width/2*sin(theta)+height/2*cos(theta), 0]
+            u_actual = [xball+rball-rball*sin(theta)+(l-width/2)*cos(theta)-width/2+width/2*cos(theta)-height/2*sin(theta), yball+rball+rball*cos(theta)+(l-width/2)*sin(theta)-height/2+width/2*sin(theta)+height/2*cos(theta), 0]
         vel_desired = [u_input[2],u_input[3],u_input[4]]
     elif block_type == "woodcircle" or block_type ==  "metalcircle":
         # u_input = [x, y, vx, vy, w]
@@ -736,7 +738,7 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
         # bound : -50 < w < 50
         l_resolution = 30
         theta_resolution = 5
-        w_resolution = 5
+        w_resolution = 25
         f_obj_value_min = 10000000
         u_input_min = [w_main, 0, 0, 0, 10]
         f_obj_list = []
@@ -746,31 +748,28 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
         #l_grid = range(int(w_main/2), w_main, l_resolution) # 5~6
         l_grid = range(int(-w_main/2), int(w_main/2), l_resolution)
         theta_grid = range(-80, 80, theta_resolution) # 32  
-        w_grid = range(-50, 50, w_resolution)      
+        w_grid = range(-150, 150, w_resolution)      
         for l_cand in l_grid:
             for theta_cand in theta_grid:
                 for w_cand in w_grid:
-                    if (theta_cand<0 and l_cand < 0 and w_cand <0) or (theta_cand<0 and l_cand < 0 and w_cand <0):
-                        pass
-                    else:
-                        continue
-                    u_input = [l_cand,theta_cand,0,0,theta_cand] 
-                    # Check feasibility
-                    u_actual, vel_desired = ConvertUopt2Ureal(u_input, block_type, w_main, h_main, s_ball_ini)
-                    main_state = [u_actual[0], u_actual[1], w_main, h_main, u_actual[2]]
-                    need_adjust = AdjustmentConstraint(main_state, block_type, env_local)
-                    com = [u_actual[0]+w_main/2, u_actual[1]+h_main/2]
-                    # If feasible, compute objective function / store stability list
-                    if need_adjust == False:
-                        #current_stability, num_supporting_necessary, pairs_for_supports = GetBestState4Support(u_actual, env_local, com)
-                        f_obj_value_current = fobj(u_input,*y)   
-                        uf_tuple = (u_input, f_obj_value_current)
-                        u_fobj_tuple_list.append(uf_tuple)                 
-                        # f_obj_list.append(f_obj_value_current)
-                        # u_input_list.append(u_input)
-                        if f_obj_value_current <= f_obj_value_min:
-                            f_obj_value_min = f_obj_value_current
-                            u_input_min = u_input
+                    if (theta_cand<0 and l_cand < 0 and w_cand <0) or (theta_cand>0 and l_cand > 0 and w_cand >0):
+                        u_input = [l_cand,theta_cand,0,0,w_cand] 
+                        # Check feasibility
+                        u_actual, vel_desired = ConvertUopt2Ureal(u_input, block_type, w_main, h_main, s_ball_ini)
+                        main_state = [u_actual[0], u_actual[1], w_main, h_main, u_actual[2]]
+                        need_adjust = AdjustmentConstraint(main_state, block_type, env_local)
+                        com = [u_actual[0]+w_main/2, u_actual[1]+h_main/2]
+                        # If feasible, compute objective function / store stability list
+                        if need_adjust == False:
+                            #current_stability, num_supporting_necessary, pairs_for_supports = GetBestState4Support(u_actual, env_local, com)
+                            f_obj_value_current = fobj(u_input,*y)   
+                            uf_tuple = (u_input, f_obj_value_current)
+                            u_fobj_tuple_list.append(uf_tuple)                 
+                            # f_obj_list.append(f_obj_value_current)
+                            # u_input_list.append(u_input)
+                            if f_obj_value_current <= f_obj_value_min:
+                                f_obj_value_min = f_obj_value_current
+                                u_input_min = u_input
 
     elif block_type == "speedupr" or block_type == "speedupl":                
         u_fobj_tuple_list = []    
@@ -2427,11 +2426,18 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                 lx = support_col_state[2]/2 
                 ly = support_col_state[3]/2 + support_col_state[2]
                 # assign values
-                x_support_col = u_actual[0] + w_block - lx
-                y_support_col = u_actual[1] - ly
-                w_support_col = support_col_state[2]
-                h_support_col = support_col_state[3]
-                theta_support_col = 90
+                if u_optimal[0] >0: # l>0                    
+                    x_support_col = u_actual[0] + w_block - lx
+                    y_support_col = u_actual[1] - ly
+                    w_support_col = support_col_state[2]
+                    h_support_col = support_col_state[3]
+                    theta_support_col = 90
+                else: # l<=0
+                    x_support_col = u_actual[0] + lx
+                    y_support_col = u_actual[1] - ly
+                    w_support_col = support_col_state[2]
+                    h_support_col = support_col_state[3]
+                    theta_support_col = 90
 
                 #print("id {}, {}".format(support_underpin_id, support_col_id))
 
