@@ -215,8 +215,10 @@ def fobj(x,*y):
 
         x_distance = ref[0]-y[0]
         y_distance = ref[1]-y[1]
-        print("state_ball_collision, x_distance, y_distance {}, {}, {}".format(state_ball_collision, x_distance, y_distance))
         state_ball = BallinAirValue(state_ball_collision[0],state_ball_collision[1],state_ball_collision[2],state_ball_collision[3],x_distance,y_distance)    
+        print("")
+        print("l, theta, w {}, {}, {}".format(x[0], x[1], x[4]))
+        print("state_ball_collision, state_ball, x_distance, y_distance {}, {}, {}, {}".format(state_ball_collision, state_ball, x_distance, y_distance))
         
     elif y[8] == "woodcircle" or y[8] == "metalcircle":
         # 2) circle
@@ -737,8 +739,8 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
         # bound : -width < l < width, -90<theta<90, l*theta >0
         # bound : -50 < w < 50
         l_resolution = 30
-        theta_resolution = 5
-        w_resolution = 25
+        theta_resolution = 10
+        w_resolution = 40
         f_obj_value_min = 10000000
         u_input_min = [w_main, 0, 0, 0, 10]
         f_obj_list = []
@@ -748,7 +750,7 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
         #l_grid = range(int(w_main/2), w_main, l_resolution) # 5~6
         l_grid = range(int(-w_main/2), int(w_main/2), l_resolution)
         theta_grid = range(-80, 80, theta_resolution) # 32  
-        w_grid = range(-150, 150, w_resolution)      
+        w_grid = range(-300, 300, w_resolution)      
         for l_cand in l_grid:
             for theta_cand in theta_grid:
                 for w_cand in w_grid:
@@ -1911,8 +1913,22 @@ def PickMainCompare(guide_path_local, traj_sorted_init, s_ball_ini, movable_ID, 
 
     return rough_optimal_main_idx
 
+def LinePick(grd_choice, pt_min):
+    vertices = RotatePts(grd_choice, 'ground')
+    for i in range(len(vertices)):
+        if pt_min[0] <= max(vertices[i-1][0], vertices[i][0]) and pt_min[0] >= min(vertices[i-1][0], vertices[i][0]) \
+        and pt_min[0] >= min(vertices[i-1][0], vertices[i][0]) and pt_min[1] <= max((vertices[i-1][1], vertices[i][1])):
+            break
+    if vertices[i-1][0] < vertices[i][0]:
+        p1 = vertices[i-1]
+        p2 = vertices[i]
+    else:
+        p1 = vertices[i]
+        p2 = vertices[i-1]
+    return p1, p2
+
 def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start):
-    # 1) Predict the ball's traj, load a traj. from a log file
+    # 1) Preprojected_linedict the ball's traj, load a traj. from a log file
     id_grd, s_grd_list, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
     traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", level_select)       
     id_ball = id_total[0]
@@ -2022,6 +2038,54 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
         count_2nd_loop = 0
         #unew = UpdateModelAfterFailure(guide_path_local, direction_end, block_type, block_state, s_ball_ini, u_optimal, f_actual)
         # update parameters and pre-set here / return new parameter and preset constraints
+        projected_pts = []       
+        ordered_pts = []
+        for i in range(len(guide_path)):
+            pt_temp = guide_path[i]
+            dist_min, pt_min, grd_choice = GetydistPt2grd(pt_temp, s_grd_list)
+            projected_pts.append(pt_min)
+
+        print("projected_pts {}".format(projected_pts))
+        for j in range(len(projected_pts)):
+            # non increasing
+            if projected_pts[j][1] <= projected_pts[j+1][1]:
+                break
+        # find that point and grd
+        pt_check = [projected_pts[j][0],projected_pts[j][1]-1] 
+        _, _, grd_choice = GetydistPt2grd(pt_check, s_grd_list)
+        p1, p2 = LinePick(grd_choice, pt_check)
+        print("[p1,p2] line is strategy constr, grd_choice {}, {}".format([p1,p2], grd_choice))
+
+
+        # def takeFirst(elem):
+        #     return elem[0]
+        # ordered_pts.sort(key=takeFirst)
+        # print("projected_line {}".format(projected_line))
+        # print("ordered_pts {}".format(ordered_pts))
+
+        # # Strategy algorithm to pick in order
+        # constraint_pts = [ordered_pts[0]]
+        # for i in range(len(ordered_pts)-1):
+        #     p_start = ordered_pts[i+1]
+        #     for j in range(len(projected_line)):
+        #         # find previous left one's pair
+        #         if constraint_pts[-1] == projected_line[j][0]:
+        #             p_right = projected_line[j][1]
+        #             break
+
+        #     if contraint
+        #     constraint_pts.append(p_start)
+        #     p_connected = projected_line[i][1]
+        #     p_compare_left = projected_line[i+1][0]
+        #     p_compare_right = projected_line[i+1][1]
+        #     # compare the connecting point with a point above
+        #     if p_compare_left[0] <= p_connected[0]:
+        #         # other pt is on the left
+        #         ordered_pts.append(p_compare_left)
+        #     else:
+        #         ordered_pts.append(p_connected)
+
+
 
 
         '''

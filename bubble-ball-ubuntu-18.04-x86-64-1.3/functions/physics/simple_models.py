@@ -90,7 +90,7 @@ def Ball2MovingLineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, 
     vt = vxball*cos(theta)+vyball*sin(theta)
     # v means the velocity of the contact point of the block 
     # velocity approaching each other
-    v = -vy*cos(theta)+vx*sin(theta)+abs(l)*w 
+    v = -vy*cos(theta)+vx*sin(theta)+l*w 
     # after collision
     vxball = v*sin(theta)+vt*cos(theta)
     vyball = -v*cos(theta)+vt*sin(theta)    
