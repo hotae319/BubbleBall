@@ -13,7 +13,7 @@ from functions.localregion import SortoutEnv, LocalRegion
 '''
 0. import the enviornment setting
 '''
-level = 6
+level = 21
 id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level)
 
 type_obj_list = ["ground" for i in range(len(id_grd))]
@@ -23,14 +23,14 @@ type_obj_list = ["ground" for i in range(len(id_grd))]
 '''
 1. path planning
 '''
-n_sample = 500
+n_sample = 800
 map_size = [0,500,0,700]
 k1 = 6
 k2 = 10
 n_exclude = 1
 prm, shortest_path, sampling_list, ax1 = path_planning(level, n_sample, k1 , map_size)    
 #re_planning(prm, level, shortest_path, k2, n_exclude)
-level_select = 6
+level_select = 21
 state_input = []
 #guide_path = [[25, 100], [63, 123], [98, 129], [119, 150], [138, 181], [155, 193], [175, 199], [216, 216], [257, 214], [291, 208], [338, 223], [366, 240], [381, 253], [406, 258], [434, 265]]
 guide_path = shortest_path
@@ -50,6 +50,7 @@ flag_success = 1
 idx_local_start = 0
 while flag_success != 0 and n_iter < 6:
     n_iter += 1
+    # p_start_update : actual state with min error, idx_loca_end : local guide path's end idx
     state_input_update, p_start_update, flag_success, data, idx_local_end = LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start)
     print(state_input_update, p_start_update, flag_success, data, idx_local_end)
     if flag_success == 0:
@@ -62,9 +63,13 @@ while flag_success != 0 and n_iter < 6:
         print("guide_path in main py : {}".format(guide_path)) 
         state_input = state_input_update
         data_pre = data
-        idx_local_start = idx_local_end
+        idx_local_start = idx_local_end-4
     else:
+        print("Even though it fails, go to next local region")
         print("we need exploration")
+        state_input = state_input_update
+        data_pre = data
+        idx_local_start = idx_local_end-4
 
 #prm, guide_path, _, _ = path_planning(level_select, n_sample, k1 , map_size, p_start_update)  
 

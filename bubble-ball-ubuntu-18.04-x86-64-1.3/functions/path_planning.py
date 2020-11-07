@@ -56,8 +56,8 @@ def path_planning(level, n_sample, k = 6, map_size = [0,500,0,500], p_start = [0
         #p_start[0] += 15
         #p_start[1] += 15
     p_end = s_total[1][0:2]
-    p_end[0] += 19 # the center w,h = (38,50)
-    p_end[1] += 25 
+    # p_end[0] += 19 # the center w,h = (38,50)
+    # p_end[1] += 25 
     prm = planning.PRM(map_size, s_grd_list, p_start, p_end)
     sampling_list = prm.Sampling(num_samples)
     prm.Addstartend()
@@ -177,7 +177,7 @@ def re_planning(prm, level, shortest_path_pre, k = 6, n_exclude = 1):
     return shortest_path, sampling_list
 
 if __name__ == "__main__":
-    level = 5
+    level = 13
     n_sample = 500
     map_size = [0,500,0,500]
     k1 = 6

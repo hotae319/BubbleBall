@@ -64,16 +64,17 @@ def Ball2LineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, w, v_t
                 vxball = vt*cos(theta)
                 vyball = vt*sin(theta)
                 status = "rolling"
-            if vt**2+2*g*l*sin(theta) >0:
-                vend = sqrt(vt**2+2*g*l*sin(theta))*np.sign(l)
-                xball = xball+l*cos(theta)
-                yball = yball+l*sin(theta)
-                vxball = vend*cos(theta)
-                vyball = vend*sin(theta)
-                status = "rolling"
-            else: # opposite slope
-                vend = -vt # opposite
-                status = "rolling"
+            else:
+                if vt**2+2*g*l*sin(theta) >0:
+                    vend = sqrt(vt**2+2*g*l*sin(theta))*np.sign(l)
+                    xball = xball+l*cos(theta)
+                    yball = yball+l*sin(theta)
+                    vxball = vend*cos(theta)
+                    vyball = vend*sin(theta)
+                    status = "rolling"
+                else: # opposite slope
+                    vend = -vt # opposite
+                    status = "rolling"
 
     # hitting the ball
     else:
@@ -196,11 +197,13 @@ def BallinAirValue(xball, yball, vxball, vyball, lx, ly = 0):
             yball += -vyball**2/2/g
 
     else:
+        #same direction
         if lx*vxball >= 0:
             xball += lx
             yball += vyball/vxball*lx+g/2*lx**2/vxball**2
             vyball += g*lx/vxball
         else:
+            # opposite direction
             xball += lx
             yball = 10000000000
             vyball = 1000000000
