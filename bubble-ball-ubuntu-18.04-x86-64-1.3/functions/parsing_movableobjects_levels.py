@@ -505,7 +505,7 @@ if __name__ == "__main__":
     # run_simulation(level_select, movable_ID, ID_dict)   
 
     # For testing logging_traj.
-    traj_list, trace_time, collision, n_obj, bool_success, ID_list, collision_pre_list, collision_post_list = logging_trajectory("bb", 2)       
+    traj_list, trace_time, collision, n_obj, bool_success, ID_list, collision_pre_list, collision_post_list = logging_trajectory("bb", 9)       
     print(len(traj_list[0]))
     a = traj_list[0]
     b = [a[i][3] for i in range(len(traj_list[0]))] 
@@ -518,7 +518,9 @@ if __name__ == "__main__":
     print(type(collision[4][0]))
     print("The trace time is {}".format(trace_time[1]))
     print("The traj_list[0] has an element like {}".format(traj_list[0][2]))
-    print("collision_pre_list is {}".format(collision_pre_list))
+    print("collision_pre_list is {} \n".format(collision_pre_list))
+    print("collision_post_list is {} \n".format(collision_post_list))
+    print("collision is {}".format(collision))
     print(trace_time)
     k = 0
     while abs(4360 - trace_time[k]) > 10:

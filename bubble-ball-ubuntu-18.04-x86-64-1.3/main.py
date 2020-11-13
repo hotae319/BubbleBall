@@ -1,3 +1,7 @@
+'''
+© 2020 Hotae Lee <hotae.lee@berkeley.edu>
+'''
+
 import numpy as np
 from matplotlib import pyplot as plt
 from math import pi, cos, sin
@@ -13,7 +17,7 @@ from functions.localregion import SortoutEnv, LocalRegion
 '''
 0. import the enviornment setting
 '''
-level = 21
+level = 9
 id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level)
 
 type_obj_list = ["ground" for i in range(len(id_grd))]
@@ -30,7 +34,7 @@ k2 = 10
 n_exclude = 1
 prm, shortest_path, sampling_list, ax1 = path_planning(level, n_sample, k1 , map_size)    
 #re_planning(prm, level, shortest_path, k2, n_exclude)
-level_select = 21
+level_select = 9
 state_input = []
 #guide_path = [[25, 100], [63, 123], [98, 129], [119, 150], [138, 181], [155, 193], [175, 199], [216, 216], [257, 214], [291, 208], [338, 223], [366, 240], [381, 253], [406, 258], [434, 265]]
 guide_path = shortest_path
@@ -44,7 +48,7 @@ run_simulation(level_select, movable_ID, ID_dict, state_input)
 state_input = []
 
 # local region loop
-data_pre = [0,0]
+data_pre = [0,0,0,0,0] # [x_sum, y_sum, xy_sum, xx_sum, N] for bounce
 n_iter = 0
 flag_success = 1
 idx_local_start = 0

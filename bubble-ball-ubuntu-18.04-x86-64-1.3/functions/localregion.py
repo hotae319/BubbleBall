@@ -1948,7 +1948,23 @@ def LearnfromData(x_in, u_pre, x_mid_data, block_type, block_state, data_pre):
         parameter = 0
         preset = 0
         data = [0,0]
+
     return parameter, data, preset
+
+def LearnBounce(x_sum, y_sum, xy_sum, xx_sum, N, vx_i, vy_i, vx_f, vy_f, theta)
+    # input : (vx_i, vy_i, vx_f, vy_f, theta)
+    # y_sum = 0
+    # x_sum = 0
+    # xy_sum = 0
+    # xx_sum = 0    
+    y = vy_f*cos(theta/180*pi)-vx_f*sin(theta/180*pi)
+    x = vy_i*cos(theta/180*pi)-vx_i*sin(theta/180*pi)
+    x_sum += x
+    y_sum += y
+    xy_sum += x*y
+    xx_sum += x*x
+    e = ((N+1)*xy_sum-x_sum*y_sum)/((N+1)*xx_sum-x_sum**2)
+    return e, x_sum, y_sum, xy_sum, xx_sum, N
 
 def UpdateCostWeights():
     weights = [0,0,1]
@@ -2235,17 +2251,58 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
         while bool_success == False and error_min > err_criterion_ball and count_3rd_loop < 4:
             # Learn the model and constraints
             # ball_contact_post = [vx,vy,w,x,y,rot], s_ball_mid = [x,y,vx,vy,r]       
-            if count_3rd_loop == 0: 
-                parameter = 0 
-                preset = 0
-                data = data_pre
-            else:
-                x_mid_data = [ball_contact_post[3], ball_contact_post[4], ball_contact_post[0], ball_contact_post[1]]
-                if block_type == "metalcircle" or block_type == "woodcircle":
-                    print("u_optimal before LearnfromData {}".format(u_optimal))
-                    parameter, data, preset = LearnfromData(s_ball_mid, u_optimal, x_mid_data, block_type, block_state, data_pre)
-                    print("parameter, data, preset : {}, {}, {}".format(parameter, data, preset))
+            x_mid_data = [ball_contact_post[3], ball_contact_post[4], ball_contact_post[0], ball_contact_post[1]]
+            # if block_type == "metalcircle" or block_type == "woodcircle":
+            #     # print("u_optimal before LearnfromData {}".format(u_optimal))
+            #     # parameter, data, preset = LearnfromData(s_ball_mid, u_optimal, x_mid_data, block_type, block_state, data_pre)
+            #     # print("parameter, data, preset : {}, {}, {}".format(parameter, data, preset))               
 
+            # Learn bounciong from the data                
+            traj_list, trace_time, collision, n_obj, bool_success, ID_list, _, _ = logging_trajectory("bb", level_select)   
+            # traj : [vx,vy,w,x,y,rot]
+            
+            # check the order of the ID in the ID_list                 
+            ball_traj = traj_list[ball_idx]    
+            # We wanna get s_ball_prior, s_ball_post(x_mid_data), theta (object of colliding with the ball) from a log file.
+            # s_prior : before the collisionStart, s_post : after the collsionStart
+            data_bounce_list = []
+            contact_idx_ball_post = 0
+            # flag_collision_blocks = False
+            flag_collision_ball = False
+            for collision_element in collision:
+                # [time, collision type, objA, objB] 
+                # contact between a main block and a ball  
+                if collision_element[1] ==  "collisionStart":
+                    if (collision_element[2] == id_ball) or (collision_element[3] == id_ball):
+                        if collision_element[2] == id_ball:
+                            id_collision = collision_element[3]
+                        else:
+                            id_collision = collision_element[2]
+                        contact_idx_ball_post = 0
+                        while abs(collision_element[0] - trace_time[contact_idx_ball2main_prior]) > 10:
+                            contact_idx_ball_post = contact_idx_ball_post+1
+                ball_post = ball_traj[contact_idx_blocks_post] # [vx,vy,theta dot, x,y,theta]
+                ball_pre = ball_traj[contact_idx_blocks_post-1]
+                # check which object colliding with the ball
+                # check if it is ground
+                for check_grd in range(len(id_grd)):
+                    if id_collision == id_grd[check_grd]:
+                        obj_state = s_grd_list[check_grd]
+                        theta_contact = obj_state[4] # [x,y,w,h,rot]
+                        break
+                # check if it is a movable one
+                for check_movable in range(len(ID_list)):
+                    if id_collision == ID_list[check_movable]:
+                        obj_traj = traj_list[check_movable+1]
+                        obj_state = obj_traj[contact_idx_ball_post]
+                        theta_contact = obj_state[5] # [vx,vy,theta dot,x,y,theta]
+                        break
+                # [vx_i,vy_i,vx_f,vy_f,theta]
+                data_bounce_list.append([ball_pre[0],ball_pre[1],ball_post[0],ball_post[1],theta_contact])
+            for data_bounce in data_bounce_list:
+                e, x_sum, y_sum, xy_sum, xx_sum, N = LearnBounce(x_sum, y_sum, xy_sum, xx_sum, N, data_bounce[0], data_bounce[1], data_bounce[2], data_bounce[3], data_bounce[4])
+                data = [x_sum, y_sum, xy_sum, xx_sum, N]
+                print("e : {}".format{e})
             count_3rd_loop += 1
             # 4)-0. Adpat the local region size after observations (reduce the size)
             # update guide path local
@@ -2334,6 +2391,7 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                 # correct the domain : exclude neighborhood of current optimal adaptive length  
                 if count_3rd_loop == 2:
                     error_best_iter = error_min # first trial
+                    u_optimal_best_iter = u_optimal 
                 else:
                     if error_best_iter > error_min:
                         error_best_iter = error_min
@@ -2848,6 +2906,7 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                     ball_contact_prior = ball_traj[contact_idx_ball2main_prior]
                     ball_contact_post = ball_traj[contact_idx_ball2main_post]
                     main_contact_prior = mainblock_traj[contact_idx_ball2main_prior]
+
 
 
                     # 9) Check the error between guide_path_local, direction_end and mainblock_traj at x_local  
