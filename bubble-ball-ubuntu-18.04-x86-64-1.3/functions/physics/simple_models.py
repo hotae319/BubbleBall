@@ -89,12 +89,18 @@ def Ball2MovingLineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, 
     theta = theta/180*pi
     w = w/180*pi
     vt = vxball*cos(theta)+vyball*sin(theta)
+    vn = -vxball*sin(theta)+vyball*cos(theta)
     # v means the velocity of the contact point of the block 
     # velocity approaching each other
-    v = -vy*cos(theta)+vx*sin(theta)+l*w 
+    # v = -vy*cos(theta)+vx*sin(theta)+l*w 
+
+    # Considering 2 consecutive collisions
+    # simple approximation for a fast rotation
+    v = -2*l*w 
+    v = (-l*w - vn)*e + v
     # after collision
-    vxball = v*sin(theta)+vt*cos(theta)
-    vyball = -v*cos(theta)+vt*sin(theta)    
+    vxball = -v*sin(theta)+vt*cos(theta)
+    vyball = v*cos(theta)+vt*sin(theta)    
     ball = [xball,yball,vxball,vyball]
     return ball
 

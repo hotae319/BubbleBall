@@ -308,7 +308,7 @@ def fobj(x,*y):
         y_distance = abs(ref[1]-y[1])
         state_ball = BallinAirValue(state_ball_collision[0],state_ball_collision[1],state_ball_collision[2],state_ball_collision[3],x_distance,y_distance)    
         state_ball_env = state_ball
-        print("state, state_ball_collsion, x, y : {}, {},{},{}".format(state_ball, state_ball_collision, x_distance, y_distance))
+        #print("state, state_ball_collsion, x, y : {}, {},{},{}".format(state_ball, state_ball_collision, x_distance, y_distance))
     elif y[8] in ("metalrtriangle" , "woodrtriangle"):
         # if we have to consider x1 at the same time
         # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w
@@ -591,7 +591,7 @@ def ConvertUopt2Ureal(u_input, block_type, w_block, h_block, s_ball_ini):
         vel_desired = [u_input[2],u_input[3],u_input[4]]
     elif block_type == "catapult":
         # u_input = [ l, theta, vx, vy, w] + lx
-        l = u_input[0]*0.99 # for safe activation
+        l = u_input[0]*0.95 # for safe activation
         width = w_block
         height = h_block
         theta = u_input[1]/180*pi
@@ -852,9 +852,9 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
         # x[0] = l, x[1] = theta, x[2] = vx, x[3] = vy, x[4] = w            
         # bound : -width < l < width, -90<theta<90, l*theta >0
         # bound : -50 < w < 50
-        l_resolution = 30
-        theta_resolution = 10
-        w_resolution = 40
+        l_resolution = 20
+        theta_resolution = 5
+        w_resolution = 25
         f_obj_value_min = 10000000
         u_input_min = [w_main, 0, 0, 0, 10]
         f_obj_list = []
@@ -862,9 +862,10 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
         u_fobj_tuple_list = []
         # grid of l, theta
         #l_grid = range(int(w_main/2), w_main, l_resolution) # 5~6
-        l_grid = range(int(-w_main/2), int(w_main/2), l_resolution)
-        theta_grid = range(-80, 80, theta_resolution) # 32  
-        w_grid = range(-300, 300, w_resolution)      
+        # +- l_resolution/2 measn safety
+        l_grid = range(int(-w_main/2+l_resolution/2), int(w_main/2-l_resolution/2), l_resolution)
+        theta_grid = range(-40, 40, theta_resolution) # 32  
+        w_grid = range(-230, 230, w_resolution)      
         for l_cand in l_grid:
             for theta_cand in theta_grid:
                 for w_cand in w_grid:
@@ -873,7 +874,9 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
                         # Check feasibility
                         u_actual, vel_desired = ConvertUopt2Ureal(u_input, block_type, w_main, h_main, s_ball_ini)
                         main_state = [u_actual[0], u_actual[1], w_main, h_main, u_actual[2]]
-                        need_adjust = AdjustmentConstraint(main_state, block_type, env_local)
+                        # To check if the underpinning block works (only height is important)
+                        underpin_state = [0,0,preset,preset,0]
+                        need_adjust = AdjustmentConstraint(main_state, block_type, env_local, underpin_state)
                         com = [u_actual[0]+w_main/2, u_actual[1]+h_main/2]
                         # If feasible, compute objective function / store stability list
                         if need_adjust == False:
@@ -1139,7 +1142,11 @@ class Drawing:
         fig1, self.ax1 = plt.subplots()
         self.ax1.axis('scaled')
         self.ax1.set(xlim = (0-1,500+1), ylim = (500+1,0-1))
-        
+        # print("back end {}".format(plt.get_backend()))
+        mngr = plt.get_current_fig_manager()
+        mngr.window.move(2000,0)
+        #print("window {}".format(mngr.WindowPosition))
+        # fig1.canvas.manager.window.wm_geometry("+500+0")
         # Draw the red local region boundary
         local = patches.Rectangle((self.xregion,self.yregion),self.xsize,self.ysize,edgecolor='r', facecolor="none") 
         self.ax1.add_patch(local)
@@ -1294,7 +1301,7 @@ def CheckOverlapCircle(state_cir, state):
 def AdjustmentConstraint(main_state, main_type, env_local, support_state = []):
     # Check violation
     need_adjust = False
-    if main_type == 'metalrectangle' or 'woodrectangle' or 'ground':        
+    if main_type == 'metalrectangle' or  main_type =='woodrectangle' or main_type == 'ground':        
         if not support_state:
             pass
         else:
@@ -1305,7 +1312,7 @@ def AdjustmentConstraint(main_state, main_type, env_local, support_state = []):
             b_overlap_env, intersect_pair_env = CheckOverlap(main_state, env)
             if b_overlap_env:
                 need_adjust = True
-    elif main_type == 'metalcircle' or 'woodcircle':
+    elif main_type == 'metalcircle' or  main_type == 'woodcircle':
         center = [main_state[0]+main_state[3]/2, main_state[1]+main_state[3]/2]
         for env_element in env_local:
             dist_min, _ = GetDistancePt2Block(center, env_element, 'ground')
@@ -1313,6 +1320,16 @@ def AdjustmentConstraint(main_state, main_type, env_local, support_state = []):
                 # overlap
                 need_adjust = True
                 break
+    elif main_type == 'catapult':
+        # ground choice for underpin
+        pt_check = [main_state[0],main_state[1]]
+        dist2grd,_,_ = GetydistPt2grd(pt_check, env_local)
+        # dist should be inside (for contacting) /support_state[3] is underpin's height
+        if 25+support_state[3] <= dist2grd and dist2grd <= 25+support_state[3]+20:
+            # print("pt_check, dist2grd {}, {}\n".format(pt_check, dist2grd))
+            pass
+        else:            
+            need_adjust = True
     return need_adjust
 
 def GetydistPt2grd(pt, ground_below):
@@ -1951,7 +1968,7 @@ def LearnfromData(x_in, u_pre, x_mid_data, block_type, block_state, data_pre):
 
     return parameter, data, preset
 
-def LearnBounce(x_sum, y_sum, xy_sum, xx_sum, N, vx_i, vy_i, vx_f, vy_f, theta)
+def LearnBounce(x_sum, y_sum, xy_sum, xx_sum, N, vx_i, vy_i, vx_f, vy_f, theta):
     # input : (vx_i, vy_i, vx_f, vy_f, theta)
     # y_sum = 0
     # x_sum = 0
@@ -1963,8 +1980,8 @@ def LearnBounce(x_sum, y_sum, xy_sum, xx_sum, N, vx_i, vy_i, vx_f, vy_f, theta)
     y_sum += y
     xy_sum += x*y
     xx_sum += x*x
-    e = ((N+1)*xy_sum-x_sum*y_sum)/((N+1)*xx_sum-x_sum**2)
-    return e, x_sum, y_sum, xy_sum, xx_sum, N
+    e = -((N+1)*xy_sum-x_sum*y_sum)/((N+1)*xx_sum-x_sum**2)
+    return e, x_sum, y_sum, xy_sum, xx_sum, N+1
 
 def UpdateCostWeights():
     weights = [0,0,1]
@@ -2150,7 +2167,7 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
     pick_main_idx = PickMainCompare(guide_path_local, traj_sorted_init, s_ball_ini, movable_ID, s_grd_list, ID_dict, ID_state_matching, xsize, direction_end)
     print("pick_main_idx : {}".format(pick_main_idx))
 
-    while  bool_success == False and error_min > err_criterion_ball and count_1st_loop < 1:
+    while  bool_success == False and error_min > err_criterion_ball and count_1st_loop < 2:
         count_1st_loop += 1
         if count_1st_loop != 1:
             pick_main_idx += 1
@@ -2248,10 +2265,13 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
         #print("traj_sorted_init {}".format(traj_sorted_init))
 
         # 4) Solve the optimization problem to obtain the required state of the main block
-        while bool_success == False and error_min > err_criterion_ball and count_3rd_loop < 4:
+        n_iter_3rd = 5
+        while bool_success == False and error_min > err_criterion_ball and count_3rd_loop < n_iter_3rd+1:
+            if count_3rd_loop != 0:
+                data_pre = data
             # Learn the model and constraints
             # ball_contact_post = [vx,vy,w,x,y,rot], s_ball_mid = [x,y,vx,vy,r]       
-            x_mid_data = [ball_contact_post[3], ball_contact_post[4], ball_contact_post[0], ball_contact_post[1]]
+            #x_mid_data = [ball_contact_post[3], ball_contact_post[4], ball_contact_post[0], ball_contact_post[1]]
             # if block_type == "metalcircle" or block_type == "woodcircle":
             #     # print("u_optimal before LearnfromData {}".format(u_optimal))
             #     # parameter, data, preset = LearnfromData(s_ball_mid, u_optimal, x_mid_data, block_type, block_state, data_pre)
@@ -2266,6 +2286,7 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
             # We wanna get s_ball_prior, s_ball_post(x_mid_data), theta (object of colliding with the ball) from a log file.
             # s_prior : before the collisionStart, s_post : after the collsionStart
             data_bounce_list = []
+            id_collision = []
             contact_idx_ball_post = 0
             # flag_collision_blocks = False
             flag_collision_ball = False
@@ -2279,30 +2300,57 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                         else:
                             id_collision = collision_element[2]
                         contact_idx_ball_post = 0
-                        while abs(collision_element[0] - trace_time[contact_idx_ball2main_prior]) > 10:
+                        while abs(collision_element[0] - trace_time[contact_idx_ball_post]) > 10:
                             contact_idx_ball_post = contact_idx_ball_post+1
-                ball_post = ball_traj[contact_idx_blocks_post] # [vx,vy,theta dot, x,y,theta]
-                ball_pre = ball_traj[contact_idx_blocks_post-1]
-                # check which object colliding with the ball
-                # check if it is ground
-                for check_grd in range(len(id_grd)):
-                    if id_collision == id_grd[check_grd]:
-                        obj_state = s_grd_list[check_grd]
-                        theta_contact = obj_state[4] # [x,y,w,h,rot]
-                        break
-                # check if it is a movable one
-                for check_movable in range(len(ID_list)):
-                    if id_collision == ID_list[check_movable]:
-                        obj_traj = traj_list[check_movable+1]
-                        obj_state = obj_traj[contact_idx_ball_post]
-                        theta_contact = obj_state[5] # [vx,vy,theta dot,x,y,theta]
-                        break
-                # [vx_i,vy_i,vx_f,vy_f,theta]
-                data_bounce_list.append([ball_pre[0],ball_pre[1],ball_post[0],ball_post[1],theta_contact])
+                if not id_collision:
+                    pass
+                else:
+                    ball_post = ball_traj[contact_idx_ball_post] # [vx,vy,theta dot, x,y,theta]
+                    ball_pre = ball_traj[contact_idx_ball_post-1]
+                    # check which object colliding with the ball
+                    # check if it is ground
+                    for check_grd in range(len(id_grd)):
+                        if id_collision == id_grd[check_grd]:
+                            obj_state = s_grd_list[check_grd]
+                            theta_contact = obj_state[4] # [x,y,w,h,rot]
+                            break
+                    # check if it is a movable one
+                    for check_movable in range(len(ID_list)):
+                        if id_collision == ID_list[check_movable]:
+                            obj_type = ID_dict[id_collision]
+                            obj_traj = traj_list[check_movable]
+                            obj_state = obj_traj[contact_idx_ball_post]
+                            if obj_type in ('metalrectangle', 'woodrectangle'):
+                                theta_contact = obj_state[5] # [vx,vy,theta dot,x,y,theta]
+                                break
+                            else:
+                                theta_contact = 500
+                    # [vx_i,vy_i,vx_f,vy_f,theta]
+                    if theta_contact == 500:
+                        pass
+                    else:
+                        data_bounce_list.append([ball_pre[0],ball_pre[1],ball_post[0],ball_post[1],theta_contact])
+            x_sum = data_pre[0]
+            y_sum = data_pre[1]
+            xy_sum = data_pre[2]
+            xx_sum = data_pre[3]
+            N = data_pre[4]
+            if N == 0:
+                e = 0
+            else:
+                e = -((N+1)*xy_sum-x_sum*y_sum)/((N+1)*xx_sum-x_sum**2)            
             for data_bounce in data_bounce_list:
                 e, x_sum, y_sum, xy_sum, xx_sum, N = LearnBounce(x_sum, y_sum, xy_sum, xx_sum, N, data_bounce[0], data_bounce[1], data_bounce[2], data_bounce[3], data_bounce[4])
-                data = [x_sum, y_sum, xy_sum, xx_sum, N]
-                print("e : {}".format{e})
+                #data = [x_sum, y_sum, xy_sum, xx_sum, N]
+                print("bounce coefficient e : {}\n".format(e))
+                print("data {},{},{},{},{}".format(x_sum, y_sum, xy_sum, xx_sum, N))
+            if count_3rd_loop == 0 and count_1st_loop == 1:
+                parameter = 0
+            else:
+                parameter = e
+            preset = 0
+            data = [x_sum, y_sum, xy_sum, xx_sum, N]
+
             count_3rd_loop += 1
             # 4)-0. Adpat the local region size after observations (reduce the size)
             # update guide path local
@@ -2319,8 +2367,8 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                 guide_path_local_update = [guide_path_local[i] for i in range(len(guide_path_local))] # to avoid deep copy
                 adaptive_length = 25       
 
-            # Solve only for first time
-            if count_3rd_loop ==1:
+            # Solve only for first time (without parameter) / solve with parameter for the second time
+            if count_3rd_loop ==1 or count_3rd_loop == 2:
                 # 4)-1. get the main block's optimal state with fixed x1 (we will update this later)
                 w_block = block_state[2]
                 h_block = block_state[3]
@@ -2361,8 +2409,12 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                     y = (s_ball_mid_temp[0],s_ball_mid_temp[1],s_ball_mid_temp[2],s_ball_mid_temp[3],s_ball_mid_temp[4], 
                         ref[0],ref[1],ref[2], block_type, block_state, s_grd_list)
                    
-                    # TODO : add a model update part and a pre-set update part
+                    # TODO : add a model update part and a pre-set update part 
+                    # preset can be a function of env, remaning supporting blocks
+                    # To check algorithm's validity for catapult, we give the length of underpin (50)
+                    preset = 50
                     # TODO : we can choose the best type which has the best u_optimal_temp --> that could be a main block here 
+
                     u_optimal_temp, f_obj_min_temp, umain_fobj_tuple_list = FindOptimalInputGrid(guide_path_local_update, 
                         direction_end, block_type, block_state, s_ball_mid_temp, s_grd_list, parameter, preset)
                     for umain_fobj_tuple in umain_fobj_tuple_list:
@@ -2389,7 +2441,7 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
             else:
                 # choose another solution here
                 # correct the domain : exclude neighborhood of current optimal adaptive length  
-                if count_3rd_loop == 2:
+                if count_3rd_loop == 3:
                     error_best_iter = error_min # first trial
                     u_optimal_best_iter = u_optimal 
                 else:
@@ -2416,7 +2468,7 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                 previous_adpative_length = umain_length_fobj_tuple_list_extend[search_idx][1] 
                 print("search_idx, u_optimal, previous_adpative_length {},{},{}".format(search_idx, u_optimal, previous_adpative_length))
                 # If it is last, pick the best one 
-                if count_3rd_loop == 3:
+                if count_3rd_loop == n_iter_3rd:
                     u_optimal = u_optimal_best_iter
                       
             #u_optimal = FindOptimalInput(guide_path_local_update, direction_end, block_type, block_state, s_ball_ini, env_local)
@@ -2707,23 +2759,30 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                         mass_list.insert(k, m_cur)
                         
                 # decide a block
-                support_col_id = wood_id_list[0]
-                support_col_type = ID_dict[support_col_id]
-                support_col_state = ID_state_matching[support_col_id]
+                if u_optimal[4] < 160:
+                    support_col_id = wood_id_list[0]
+                    support_col_type = ID_dict[support_col_id]
+                    support_col_state = ID_state_matching[support_col_id]
+                else:
+                    support_col_id = wood_id_list[-1]
+                    support_col_type = ID_dict[support_col_id]
+                    support_col_state = ID_state_matching[support_col_id]
 
                 # decision variable (lx, ly)
-                lx = support_col_state[2]/2 
-                ly = support_col_state[3]/2 + support_col_state[2] -10 - u_optimal[1]/10
+                lx = -support_col_state[3]/2 +u_optimal[4]/10-15
+                # large theta needs fast collision
+                ly = support_col_state[2]/2 + support_col_state[3] -10 - u_optimal[1]/3 + u_optimal[4]/7
+
                 # assign values
                 if u_optimal[0] >0: # l>0                    
-                    x_support_col = u_actual[0] + w_block + lx - 2*support_col_state[2]/2 
-                    y_support_col = u_actual[1] - ly
+                    x_support_col = u_actual[0] + w_block - support_col_state[2]/2 + lx 
+                    y_support_col = u_actual[1] - ly                    
                     w_support_col = support_col_state[2]
                     h_support_col = support_col_state[3]
                     theta_support_col = 90
                 else: # l<=0
                     x_support_col = u_actual[0] - lx 
-                    y_support_col = u_actual[1] - ly
+                    y_support_col = u_actual[1] - ly 
                     w_support_col = support_col_state[2]
                     h_support_col = support_col_state[3]
                     theta_support_col = 90
@@ -2752,7 +2811,7 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                 elif block_type == "speedupr" or block_type == "speedupl":
                     powerups = powerUps(u_actual[0], u_actual[1], block_type)
                     display.drawobject(powerups, 1)
-
+ 
                 plt.show(block=False)
                 plt.pause(5)
                 state_input.extend(state_input_localregion)
@@ -2822,7 +2881,7 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                 # Draw the box as well. 
                 count_4th_loop = 0
                 err_main = 100000
-                while err_main > 4000 and bool_success == False and error_min > err_criterion_ball and count_4th_loop < 2:
+                while err_main > 2500 and bool_success == False and error_min > err_criterion_ball and count_4th_loop < 4:
                     # Input the main block.                      
                     state_input_localregion = []   
                     state_input_localregion.append([input_id, u_actual[0], u_actual[1], u_actual[2]])
@@ -2874,6 +2933,7 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                     contact_idx_ball2main_post = 0
                     flag_collision_ball = False
                     flag_collision_blocks = False
+                    check_second_collision = 0
                     for collision_element in collision:
                         # [time, collision type, objA, objB]
                         # contact between a main block and an another block
@@ -2887,17 +2947,21 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                                 flag_collision_blocks = True
                                 while abs(collision_element[0] - trace_time[contact_idx_blocks_prior]) > 10:
                                     contact_idx_blocks_post = contact_idx_blocks_post + 1   
+                    for collision_element in collision:    
                         # contact between a main block and a ball  
-                        elif (collision_element[2] == input_id and collision_element[3] == id_ball and flag_collision_ball == False) or (collision_element[3] == input_id and collision_element[2] == id_ball and flag_collision_ball == False):
+                        if (collision_element[2] == input_id and collision_element[3] == id_ball and flag_collision_ball == False) or (collision_element[3] == input_id and collision_element[2] == id_ball and flag_collision_ball == False):
                             if collision_element[1] == "collisionStart":
+                                check_second_collision += 1
                                 contact_idx_ball2main_prior = 0                                
                                 while abs(collision_element[0] - trace_time[contact_idx_ball2main_prior]) > 10:
-                                    contact_idx_ball2main_prior = contact_idx_ball2main_prior+1
+                                    contact_idx_ball2main_prior = contact_idx_ball2main_prior+1                                
                             elif collision_element[1] == "collisionEnd":
                                 contact_idx_ball2main_post = contact_idx_ball2main_prior          
                                 #print("contact_idx_ball2main_post, len(trace_time), collision_element : {}, {}, {}".format(contact_idx_ball2main_post, len(trace_time), collision_element))                      
                                 while abs(collision_element[0] - trace_time[contact_idx_ball2main_post]) > 10:
                                     contact_idx_ball2main_post = contact_idx_ball2main_post+1
+                            if check_second_collision == 2:
+                                break
                                     #print(contact_idx_ball2main_post, trace_time[contact_idx_ball2main_post])
                     # print("check")
                     # print(contact_idx_ball2main_post, contact_idx_ball2main_prior, trace_time[contact_idx_ball2main_prior])
@@ -2936,6 +3000,8 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                     # [w,x,y,rot]]
                     error_main_array = desired_traj_main[2:] - mainblock_traj[contact_idx_ball2main_prior][2:]
                     err_main = np.sum(np.square(error_main_array))
+                    if abs(error_main_array[3]) >=20:
+                        err_main +=  2*error_main_array[3]**2
 
                     # print(mainblock_traj)
                     print("desired main, current main {}, {}".format(desired_traj_main[2:], mainblock_traj[contact_idx_ball2main_prior][2:]))
@@ -2950,31 +3016,36 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                     plt.pause(3)
                     print("error : {}".format(error_min))
                     print("iteration 1st loop, 2nd loop, 3rd loop: {0}, {1}, {2}".format(count_1st_loop, count_2nd_loop, count_3rd_loop))
-        
-                    if err_main > 4000 and bool_success == False and error_min > err_criterion_ball and count_4th_loop < 3:
-                        # decision variable (lx, ly)
-                        print("pre ly, lx {}, {}".format(ly, lx))
-                        if abs(error_main_array[1])>20:
-                            # too large error, initialize
-                            lx = support_col_state[2]/2 
-                            ly = support_col_state[3]/2 + support_col_state[2] -10 
-                        else:
-                            lx = lx + error_main_array[3]/5
-                            ly = ly + error_main_array[0]/30
-                        print("post ly, lx {}, {}".format(ly, lx))
-                        # assign values
-                        if u_optimal[0] >0: # l>0                    
-                            x_support_col = u_actual[0] + w_block + lx - support_col_state[2]
-                            y_support_col = u_actual[1] - ly
-                            w_support_col = support_col_state[2]
-                            h_support_col = support_col_state[3]
-                            theta_support_col = 90
-                        else: # l<=0
-                            x_support_col = u_actual[0] - lx
-                            y_support_col = u_actual[1] - ly
-                            w_support_col = support_col_state[2]
-                            h_support_col = support_col_state[3]
-                            theta_support_col = 90
+                    # if err_main > 2500 and bool_success == False and count_4th_loop < 3:
+                    # if err_main > 4000 and bool_success == False and error_min > err_criterion_ball and count_4th_loop < 3:
+                    # decision variable (lx, ly)
+                    print("pre ly, lx {}, {}".format(ly, lx))
+                    if abs(error_main_array[1])>20:
+                        # too large error, initialize
+                        lx = -support_col_state[3]/2 +u_optimal[4]/10-15
+                        ly =  support_col_state[2]/2 + support_col_state[3] -10 - u_optimal[1]/3 + u_optimal[4]/7
+                    else:
+                        lx = lx + error_main_array[0]/20
+                        ly = ly + error_main_array[3]/2 + error_main_array[0]/5
+                    print("post ly, lx {}, {}".format(ly, lx))
+                    print("count_4th_loop {}".format(count_4th_loop))
+
+
+
+                    # assign values
+                    if u_optimal[0] >0: # l>0                    
+                        x_support_col = u_actual[0] + w_block + lx - support_col_state[2]/2
+                        y_support_col = u_actual[1] - ly
+                        w_support_col = support_col_state[2]
+                        h_support_col = support_col_state[3]
+                        theta_support_col = 90
+                    else: # l<=0
+                        x_support_col = u_actual[0] - lx
+                        y_support_col = u_actual[1] - ly
+                        w_support_col = support_col_state[2]
+                        h_support_col = support_col_state[3]
+                        theta_support_col = 90
+                    count_4th_loop += 1
 
             else:
                 # if type is wood
