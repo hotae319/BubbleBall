@@ -2266,7 +2266,9 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
 
         # 4) Solve the optimization problem to obtain the required state of the main block
         n_iter_3rd = 5
-        while bool_success == False and error_min > err_criterion_ball and count_3rd_loop < n_iter_3rd+1:
+        err_main = 100000
+        err_main_criterion = 2000
+        while (bool_success == False and error_min > err_criterion_ball and count_3rd_loop < n_iter_3rd+1) or (bool_success == False and err_main > err_main_criterion and count_3rd_loop < n_iter_3rd+1):
             if count_3rd_loop != 0:
                 data_pre = data
             # Learn the model and constraints
@@ -2302,6 +2304,8 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                         contact_idx_ball_post = 0
                         while abs(collision_element[0] - trace_time[contact_idx_ball_post]) > 10:
                             contact_idx_ball_post = contact_idx_ball_post+1
+                            if contact_idx_ball_post == len(trace_time)-1:
+                                break
                 if not id_collision:
                     pass
                 else:
@@ -2352,6 +2356,8 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
             data = [x_sum, y_sum, xy_sum, xx_sum, N]
 
             count_3rd_loop += 1
+            # err_main initialize
+            err_main = 10000
             # 4)-0. Adpat the local region size after observations (reduce the size)
             # update guide path local
             if count_3rd_loop != 1:
@@ -2369,6 +2375,8 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
 
             # Solve only for first time (without parameter) / solve with parameter for the second time
             if count_3rd_loop ==1 or count_3rd_loop == 2:
+                
+
                 # 4)-1. get the main block's optimal state with fixed x1 (we will update this later)
                 w_block = block_state[2]
                 h_block = block_state[3]
@@ -2448,17 +2456,18 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                     if error_best_iter > error_min:
                         error_best_iter = error_min
                         u_optimal_best_iter = u_optimal 
-                if error_min > 6000:
-                    # totally different
-                    adaptive_length_grid_copy.remove(previous_adpative_length)
-                    if previous_adpative_length+adaptive_length_resolution in adaptive_length_grid_copy:
-                        adaptive_length_grid_copy.remove(previous_adpative_length+adaptive_length_resolution)
-                    if previous_adpative_length-adaptive_length_resolution in adaptive_length_grid_copy:
-                        adaptive_length_grid_copy.remove(previous_adpative_length-adaptive_length_resolution)
-                    while umain_length_fobj_tuple_list_extend[search_idx][1] not in adaptive_length_grid_copy:
-                        search_idx += 1
-                else:
-                    search_idx += 1
+                # if error_min > 6000:
+                #     # When it is totally different from what we want, new search among the feasible region
+                #     adaptive_length_grid_copy.remove(previous_adpative_length)
+                #     if previous_adpative_length+adaptive_length_resolution in adaptive_length_grid_copy:
+                #         adaptive_length_grid_copy.remove(previous_adpative_length+adaptive_length_resolution)
+                #     if previous_adpative_length-adaptive_length_resolution in adaptive_length_grid_copy:
+                #         adaptive_length_grid_copy.remove(previous_adpative_length-adaptive_length_resolution)
+                #     while (umain_length_fobj_tuple_list_extend[search_idx][1] not in adaptive_length_grid_copy) and search_idx <np.shape(umain_length_fobj_tuple_list_extend)[0]-1:
+                #         #print(search_idx, np.shape(umain_length_fobj_tuple_list_extend)[0])
+                #         search_idx += 1
+                # else:
+                search_idx += 1
                 # while abs(umain_length_fobj_tuple_list_extend[search_idx][1] - previous_adpative_length) < adaptive_length_resolution:
                 #     search_idx += 1
                 u_optimal = umain_length_fobj_tuple_list_extend[search_idx][0]                 
@@ -2759,7 +2768,7 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                         mass_list.insert(k, m_cur)
                         
                 # decide a block
-                if u_optimal[4] < 160:
+                if u_optimal[4] < 190:
                     support_col_id = wood_id_list[0]
                     support_col_type = ID_dict[support_col_id]
                     support_col_state = ID_state_matching[support_col_id]
@@ -2771,7 +2780,7 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                 # decision variable (lx, ly)
                 lx = -support_col_state[3]/2 +u_optimal[4]/10-15
                 # large theta needs fast collision
-                ly = support_col_state[2]/2 + support_col_state[3] -10 - u_optimal[1]/3 + u_optimal[4]/7
+                ly = support_col_state[2]/2 + support_col_state[3] -5 - u_optimal[1]/3 + u_optimal[4]/7
 
                 # assign values
                 if u_optimal[0] >0: # l>0                    
@@ -2880,8 +2889,12 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                 # If iteration is necessary, we have to proceed it here
                 # Draw the box as well. 
                 count_4th_loop = 0
-                err_main = 100000
-                while err_main > 2500 and bool_success == False and error_min > err_criterion_ball and count_4th_loop < 4:
+                while err_main > 1200 and bool_success == False and count_4th_loop < 4:
+                # while err_main > 1200 and bool_success == False and error_min > err_criterion_ball and count_4th_loop < 4:
+                    # erase the objects
+                    display.eraseobject()
+                    display.eraseobject()
+                    display.eraseobject()
                     # Input the main block.                      
                     state_input_localregion = []   
                     state_input_localregion.append([input_id, u_actual[0], u_actual[1], u_actual[2]])
@@ -2942,11 +2955,15 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                                 contact_idx_blocks_prior = 0
                                 while abs(collision_element[0] - trace_time[contact_idx_blocks_prior]) > 10:
                                     contact_idx_blocks_prior = contact_idx_blocks_prior + 1     
+                                    if contact_idx_blocks_prior == len(trace_time)-1:
+                                        break
                             elif collision_element[1] == "collsionEnd":
                                 contact_idx_blocks_post = contact_idx_blocks_prior
                                 flag_collision_blocks = True
                                 while abs(collision_element[0] - trace_time[contact_idx_blocks_prior]) > 10:
                                     contact_idx_blocks_post = contact_idx_blocks_post + 1   
+                                    if contact_idx_blocks_post == len(trace_time)-1:
+                                        break
                     for collision_element in collision:    
                         # contact between a main block and a ball  
                         if (collision_element[2] == input_id and collision_element[3] == id_ball and flag_collision_ball == False) or (collision_element[3] == input_id and collision_element[2] == id_ball and flag_collision_ball == False):
@@ -2954,12 +2971,16 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                                 check_second_collision += 1
                                 contact_idx_ball2main_prior = 0                                
                                 while abs(collision_element[0] - trace_time[contact_idx_ball2main_prior]) > 10:
-                                    contact_idx_ball2main_prior = contact_idx_ball2main_prior+1                                
+                                    contact_idx_ball2main_prior = contact_idx_ball2main_prior+1     
+                                    if contact_idx_ball2main_prior == len(trace_time)-1:
+                                        break                           
                             elif collision_element[1] == "collisionEnd":
                                 contact_idx_ball2main_post = contact_idx_ball2main_prior          
                                 #print("contact_idx_ball2main_post, len(trace_time), collision_element : {}, {}, {}".format(contact_idx_ball2main_post, len(trace_time), collision_element))                      
                                 while abs(collision_element[0] - trace_time[contact_idx_ball2main_post]) > 10:
                                     contact_idx_ball2main_post = contact_idx_ball2main_post+1
+                                    if contact_idx_ball2main_post == len(trace_time)-1:
+                                        break
                             if check_second_collision == 2:
                                 break
                                     #print(contact_idx_ball2main_post, trace_time[contact_idx_ball2main_post])
@@ -3002,6 +3023,10 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                     err_main = np.sum(np.square(error_main_array))
                     if abs(error_main_array[3]) >=20:
                         err_main +=  2*error_main_array[3]**2
+                    elif check_second_collision != 2:
+                        # if it does not exceed threshold for double contacts
+                        error_main_array[0] += 35
+                        err_main = np.sum(np.square(error_main_array))
 
                     # print(mainblock_traj)
                     print("desired main, current main {}, {}".format(desired_traj_main[2:], mainblock_traj[contact_idx_ball2main_prior][2:]))
@@ -3023,10 +3048,10 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                     if abs(error_main_array[1])>20:
                         # too large error, initialize
                         lx = -support_col_state[3]/2 +u_optimal[4]/10-15
-                        ly =  support_col_state[2]/2 + support_col_state[3] -10 - u_optimal[1]/3 + u_optimal[4]/7
+                        ly =  support_col_state[2]/2 + support_col_state[3] -5 - u_optimal[1]/3 + u_optimal[4]/7
                     else:
-                        lx = lx + error_main_array[0]/20
-                        ly = ly + error_main_array[3]/2 + error_main_array[0]/5
+                        lx = lx + error_main_array[0]/6
+                        ly = ly - error_main_array[3]/2 + error_main_array[0]/4
                     print("post ly, lx {}, {}".format(ly, lx))
                     print("count_4th_loop {}".format(count_4th_loop))
 
@@ -3046,10 +3071,10 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                         h_support_col = support_col_state[3]
                         theta_support_col = 90
                     count_4th_loop += 1
-
+                    print((bool_success == False and error_min > err_criterion_ball and count_3rd_loop < n_iter_3rd+1))
+                    print(err_main > err_main_criterion)
             else:
-                # if type is wood
-                err_main_criterion = 2000
+                # if type is wood                
                 err_main = 50000
                 flag_supportings = True
                 count_4th_loop = 0

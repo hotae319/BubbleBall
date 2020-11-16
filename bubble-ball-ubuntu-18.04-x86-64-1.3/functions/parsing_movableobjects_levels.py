@@ -412,9 +412,18 @@ def logging_trajectory(filename, level_select):
                 j = k - 1 
                 while content[j][1] != "trace" and content[j][1] != "levelComplete":
                     j += 1
-                while content[j][2] != content[k][2] and end_flag != True:              
+                if content[j][1] == "levelComplete":
+                    break
+                # print("j,k {},{} ".format(j,k))
+                # print("content {},{}".format(content[j][2], content[k][2]))     
+                # print("content j[0] and shape {}, {}".format(content[j][0],np.shape(content)))       
+                while content[j][2] != content[k][2] and end_flag != True:  
+                    # print("j,k {},{} ".format(j,k))
+                    # print("content {},{}".format(content[j][2], content[k][2]))     
+                    # print("content j[0] and shape {}, {}".format(content[j][0],np.shape(content)))       
                     j = j + 1
                     if j >= n_log-1:
+                        j -= 1
                         end_flag = True
                     elif content[j+1][1] == "levelComplete":
                         end_flag = True
@@ -446,12 +455,19 @@ def logging_trajectory(filename, level_select):
                 j = k - 1
                 while content[j][1] != "trace" and content[j][1] != "levelComplete":
                     j += 1
-                if content[j][1] == "levelComplete":
+                if content[j][1] == "levelComplete"or content[j][1] == "ballsExitedScreen":
                     end_flag = True
                 else:
-                    while content[j][2] != content[k][3] and end_flag != True:                                  
+                    # print("j,k {},{}".format(j,k))
+                    # print("content len {}".format(np.shape(content)))
+                    # print("content j,j+1 {},{}".format(content[j][2], content[j+1][2]))
+                    # print("content k{}".format(content[k][3]))
+                    # print("n log {}".format(n_log))
+                    while content[j][2] != content[k][3] and end_flag != True:           
+                        # print("j {}".format(j))                       
                         j = j + 1
                         if j >= n_log-1:
+                            j -= 1
                             end_flag = True
                         elif content[j+1][1] == "levelComplete":
                             end_flag = True
