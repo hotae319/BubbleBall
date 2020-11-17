@@ -316,6 +316,16 @@ def CheckIntersectPolygon(point_list, p1, p2):
         pts_intersect.append(GetIntersectPt(p1,p2,q1,q2))
     return bool_intersect, line_intersect, pts_intersect
 
+def CheckIntersectEnvlist(grd_list, p1, p2):
+    # Check it the line segment intersect the grd_list
+    bool_intersect = False
+    for grd in grd_list:
+        pts = RotatePts(grd, 'ground')
+        bool_intersect, _, _ = CheckIntersectPolygon(pts, p1, p2)
+        if bool_intersect == True:
+            break
+    return bool_intersect
+
 
 def ClosestNeighbor(point_list, ptest, k):
     # Choose k nearest points from ptest

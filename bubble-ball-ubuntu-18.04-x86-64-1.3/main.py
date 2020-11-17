@@ -17,7 +17,7 @@ from functions.localregion import SortoutEnv, LocalRegion
 '''
 0. import the enviornment setting
 '''
-level = 8
+level = 18
 id_grd, s_grd, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level)
 
 type_obj_list = ["ground" for i in range(len(id_grd))]
@@ -34,7 +34,7 @@ k2 = 10
 n_exclude = 1
 prm, shortest_path, sampling_list, ax1 = path_planning(level, n_sample, k1 , map_size)    
 #re_planning(prm, level, shortest_path, k2, n_exclude)
-level_select = 8
+level_select = 18
 state_input = []
 #guide_path = [[25, 100], [63, 123], [98, 129], [119, 150], [138, 181], [155, 193], [175, 199], [216, 216], [257, 214], [291, 208], [338, 223], [366, 240], [381, 253], [406, 258], [434, 265]]
 guide_path = shortest_path
@@ -76,7 +76,7 @@ while flag_success != 0 and n_iter < 6:
         print("we need exploration")
         state_input = state_input_update
         data_pre = data
-        idx_local_start = idx_local_end-4
+        idx_local_start = idx_local_end-7
 
 #prm, guide_path, _, _ = path_planning(level_select, n_sample, k1 , map_size, p_start_update)  
 

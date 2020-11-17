@@ -43,11 +43,16 @@ def Ball2LineValue(xball, yball, vxball, vyball, rball, l, theta, vx, vy, w, v_t
     # degree to radians 
     theta = theta/180*pi
     vt = vxball*cos(theta)+vyball*sin(theta)
+    vn = -vxball*sin(theta)+vyball*cos(theta)
     v = vy*cos(theta)-vx*sin(theta)+l*w # v means the velocity of the contact point of the block 
     # rolling on the block
     if abs(v) <= v_thres and abs(w) <= w_thres:
-        if l*theta >= 0:            
-            if abs(vt) >= 0.5:
+        if l*theta >= 0:    
+            if vt*l < 0 and abs(vn)/abs(vt) < 2:
+                vxball = vt*cos(theta)
+                vyball = vt*sin(theta)
+                status = "go out after hitting"         
+            elif vt*l >0 and abs(vt) >= 0.5:
                 vend = sqrt(vt**2+2*g*l*sin(theta))*np.sign(l)
                 xball = xball+l*cos(theta)
                 yball = yball+l*sin(theta)
@@ -210,7 +215,7 @@ def BallinAirValue(xball, yball, vxball, vyball, lx, ly = 0):
             vyball += g*lx/vxball
         else:
             # opposite direction
-            xball += lx
+            xball += -lx
             yball = 10000000000
             vyball = 1000000000
     ball = [xball,yball,vxball,vyball]
@@ -293,6 +298,9 @@ def Ball2PowerupValue(xball, yball, vxball, vyball, rball, x, y, power_type):
             vxball -= 191
         else:
             vxball -= 0
+    elif power_type == "slowdown":
+        vxball *= 0.1
+        vyball *= 0.1
     ball = [xball,yball,vxball,vyball]
     return ball
 
