@@ -19,7 +19,24 @@ This is a code implementation of our hierarchical algorithm in **Learning How to
 3. If you wanna check each function module such as local_region algorithm, you can run it separately.
 
 ## Structure
-.
+```
+project
+│   README.md
+│   file001.txt    
+│
+└───folder1
+│   │   file011.txt
+│   │   file012.txt
+│   │
+│   └───subfolder1
+│       │   file111.txt
+│       │   file112.txt
+│       │   ...
+│   
+└───folder2
+    │   file021.txt
+    │   file022.txt
+```
 +-- main.py
 +-- functions
 |   +-- localregion.py
