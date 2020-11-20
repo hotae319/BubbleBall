@@ -36,14 +36,15 @@ prm, shortest_path, sampling_list, ax1 = path_planning(level, n_sample, k1 , map
 #re_planning(prm, level, shortest_path, k2, n_exclude)
 level_select = 21
 state_input = []
-#guide_path = [[25, 100], [63, 123], [98, 129], [119, 150], [138, 181], [155, 193], [175, 199], [216, 216], [257, 214], [291, 208], [338, 223], [366, 240], [381, 253], [406, 258], [434, 265]]
 guide_path = shortest_path
-# for level 5
-#guide_path = [[210, 100], [241, 119], [284, 139], [304, 129], [348, 137], [372, 144], [391, 151], [435, 153], [476, 180], [446, 210], [407, 223], [389, 227], [377, 260], [345, 276], [310, 274], [276, 263], [255, 283], [243, 287], [209, 294], [176, 288], [159, 292], [139, 293], [117, 300], [86, 302], [59, 292], [34, 285]]
-# for level 10
-#guide_path = [[20,300],[20,50],[500,50]]
-# for level 21
-#guide_path = [[35, 135], [66, 131], [100,125], [120,103], [140,90], [181,100], [207,70], [250,76], [300,88], [323,95], [350,120], [371,162], [400, 175]]
+# guide paht examples
+# # for level 5
+# guide_path = [[210, 100], [241, 119], [284, 139], [304, 129], [348, 137], [372, 144], [391, 151], [435, 153], [476, 180], [446, 210], [407, 223], [389, 227], [377, 260], [345, 276], [310, 274], [276, 263], [255, 283], [243, 287], [209, 294], [176, 288], [159, 292], [139, 293], [117, 300], [86, 302], [59, 292], [34, 285]]
+# # for level 10
+# guide_path = [[20,300],[20,50],[500,50]]
+# # for level 21
+# guide_path = [[35, 135], [66, 131], [100,125], [120,103], [140,90], [181,100], [207,70], [250,76], [300,88], [323,95], [350,120], [371,162], [400, 175]]
+
 # Initialize
 id_grd, s_grd_list, s_total, id_total, n_total, movable_ID, ID_dict, ID_state_matching = parsing_objects(level_select)
 state_input.append(["{}".format(movable_ID[0]), 0,0,0])
@@ -80,7 +81,6 @@ while flag_success != 0 and n_iter < 6:
         data_pre = data
         idx_local_start = idx_local_end-7
 
-#prm, guide_path, _, _ = path_planning(level_select, n_sample, k1 , map_size, p_start_update)  
 
 
 '''
