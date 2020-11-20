@@ -301,6 +301,8 @@ def Ball2PowerupValue(xball, yball, vxball, vyball, rball, x, y, power_type):
     elif power_type == "slowdown":
         vxball *= 0.1
         vyball *= 0.1
+    elif power_type == "gravity":
+        g *= -1
     ball = [xball,yball,vxball,vyball]
     return ball
 

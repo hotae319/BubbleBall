@@ -81,7 +81,7 @@ def SelectLocalRegion(guide_path, x_predicted_traj, y_predicted_traj, s_grd_list
     print("traj new {} , {}".format(x_predicted_traj_new, y_predicted_traj_new))
     while error_list[idx_local_start] < error_threshold/4:
         idx_local_start += 1
-    while error_list[idx_local_end] < error_threshold*1.3 and idx_local_end < len(error_list)-1:
+    while error_list[idx_local_end] < error_threshold and idx_local_end < len(error_list)-1:
         idx_local_end += 1
     # Decide the local region
     # id_pick : predicted traj's idx (outside the function, we need to choose s_ball_init)
@@ -350,7 +350,7 @@ def fobj(x,*y):
                         # ball is above the grd_end
                         state_ball_env = [ref[0],y[13][1] + y[4]*2,state_ball[2],0]   
         #print("fenv with l, theta, initila ball {}, {}, {}, {}".format(state_ball, x[0],x[1], y[0]))
-    elif y[8] in ("speedupr", "speedupl", "slowdown"):
+    elif y[8] in ("speedupr", "speedupl", "slowdown", "gravity"):
         # x[0] = x, x[1] = y, x[2] = rot
         # x_{k+N} = f_s(x_k, u_k)
         state_ball_power = Ball2PowerupValue(y[0],y[1],y[2],y[3],y[4], x[0], x[1], y[8])
@@ -896,7 +896,7 @@ def FindOptimalInputGrid(guide_path_local, direction_end, block_type, block_stat
                                 f_obj_value_min = f_obj_value_current
                                 u_input_min = u_input
 
-    elif block_type == "speedupr" or block_type == "speedupl" or block_type == "slowdown":                
+    elif block_type == "speedupr" or block_type == "speedupl" or block_type == "slowdown" or block_type == "gravity":                
         u_fobj_tuple_list = []    
         u_input = [xball, yball, 0]
         f_obj_value_current = fobj(u_input,*y)   
@@ -2301,7 +2301,7 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
         #print("traj_sorted_init {}".format(traj_sorted_init))
 
         # 4) Solve the optimization problem to obtain the required state of the main block
-        n_iter_3rd = 3
+        n_iter_3rd = 4
         err_main = 100000
         err_main_criterion = 2000
         while (bool_success == False and error_min > err_criterion_ball and count_3rd_loop < n_iter_3rd+1) or (bool_success == False and err_main > err_main_criterion and count_3rd_loop < n_iter_3rd+1):
@@ -3092,9 +3092,9 @@ def LocalRegion(guide_path, level_select, state_input, data_pre, idx_local_start
                         # too large error, initialize
                         lx = -support_col_state[3]/2 +u_optimal[4]/10-15
                         ly =  support_col_state[2]/2 + support_col_state[3] -5 
-                    else:
-                        lx = lx + error_main_array[0]*(desired_traj_main[0])/abs(desired_traj_main[0])/6
-                        ly = ly - error_main_array[3]*desired_traj_main[3]/abs(desired_traj_main[3])/2 + error_main_array[0]*(desired_traj_main[0])/abs(desired_traj_main[0])/4
+                    else:                        
+                        lx = lx + error_main_array[0]*np.sign(desired_traj_main[2])/6
+                        ly = ly - error_main_array[3]*np.sign(desired_traj_main[5])/2 + error_main_array[2]*np.sign(desired_traj_main[2])/4
                     print("post ly, lx {}, {}".format(ly, lx))
                     print("count_4th_loop {}".format(count_4th_loop))
  
